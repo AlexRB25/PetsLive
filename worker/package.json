@@ -1,0 +1,19 @@
+{
+  "name": "mascotas-live-worker",
+  "version": "0.1.0",
+  "description": "Conexiones a plataformas, motor de reacciones y cobro por minuto",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test --experimental-test-module-mocks"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "tiktok-live-connector": "^2.5.0"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}
