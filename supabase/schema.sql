@@ -194,10 +194,14 @@ begin
   on conflict (user_id) do nothing;
 
   select * into w from public.wallets where user_id = p_user for update;
-  if w.period_end <= now() and v_plan = 'gratis' then
+  -- Se renueva solo si el plan no se cobra mes a mes: el gratis, o una suscripción regalada por un admin.
+  if w.period_end <= now() and (v_plan = 'gratis' or exists (
+    select 1 from public.subscriptions s
+     where s.user_id = p_user and s.source = 'admin' and s.plan_id = v_plan and s.paid_until > now()
+  )) then
     update public.wallets
-       set plan_id = 'gratis',
-           plan_minutes = (select minutes from public.plans where id = 'gratis'),
+       set plan_id = v_plan,
+           plan_minutes = (select minutes from public.plans where id = v_plan),
            period_end = now() + interval '1 month',
            updated_at = now()
      where user_id = p_user
@@ -343,6 +347,7 @@ as $$
 begin
   perform public.refresh_wallet(new.id);
   insert into public.mascots (user_id) values (new.id) on conflict (user_id) do nothing;
+  insert into public.profiles (id, email) values (new.id, coalesce(new.email, '')) on conflict (id) do nothing;
   return new;
 end;
 $$;
@@ -452,3 +457,199 @@ create policy mascotas_update on storage.objects for update to authenticated
 drop policy if exists mascotas_delete on storage.objects;
 create policy mascotas_delete on storage.objects for delete to authenticated
   using (bucket_id = 'mascotas' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============ resumen de directos ============
+
+-- Estadísticas por plataforma (las escribe el worker) y resumen con IA de cada directo.
+alter table public.live_sessions add column if not exists stats jsonb not null default '{}'::jsonb;
+alter table public.live_sessions add column if not exists summary jsonb;
+
+-- Qué planes incluyen el resumen con IA (las estadísticas sin IA son para todos).
+alter table public.plans add column if not exists summaries boolean not null default false;
+update public.plans set summaries = true where id in ('creator', 'pro', 'business') and summaries = false;
+
+-- Comentarios del directo, solo para hacer el resumen: se borran al generarlo o a los 30 días.
+-- Sin políticas: solo el servidor los lee y escribe.
+create table if not exists public.session_comments (
+  id bigserial primary key,
+  session_id uuid not null references public.live_sessions (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  platform text not null,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists session_comments_session_idx on public.session_comments (session_id);
+create index if not exists session_comments_created_idx on public.session_comments (created_at);
+alter table public.session_comments enable row level security;
+revoke all on public.session_comments from anon, authenticated;
+
+-- ============ administración ============
+
+-- Perfil de cada cuenta: correo (copia de auth.users), admin y suspensión.
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  email text not null default '',
+  is_admin boolean not null default false,
+  blocked boolean not null default false,
+  blocked_reason text not null default '',
+  notes text not null default '',
+  created_at timestamptz not null default now()
+);
+-- Cuentas que ya existían antes de esta tabla.
+insert into public.profiles (id, email, created_at)
+select u.id, coalesce(u.email, ''), coalesce(u.created_at, now()) from auth.users u
+on conflict (id) do nothing;
+
+alter table public.profiles enable row level security;
+drop policy if exists profiles_own on public.profiles;
+create policy profiles_own on public.profiles for select to authenticated using (id = auth.uid());
+revoke insert, update, delete on public.profiles from anon, authenticated;
+
+-- Todo lo que hace un admin queda registrado.
+create table if not exists public.admin_actions (
+  id bigserial primary key,
+  admin_id uuid references auth.users (id) on delete set null,
+  user_id uuid references auth.users (id) on delete cascade,
+  action text not null,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists admin_actions_user_idx on public.admin_actions (user_id, created_at desc);
+alter table public.admin_actions enable row level security;
+revoke all on public.admin_actions from anon, authenticated;
+
+-- Suma o resta minutos (del plan o extra) sin bajar de cero.
+create or replace function public.admin_adjust_minutes(p_user uuid, p_plan integer, p_extra integer)
+returns public.wallets
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  w public.wallets;
+begin
+  perform public.refresh_wallet(p_user);
+  update public.wallets
+     set plan_minutes = greatest(0, plan_minutes + coalesce(p_plan, 0)),
+         extra_minutes = greatest(0, extra_minutes + coalesce(p_extra, 0)),
+         updated_at = now()
+   where user_id = p_user
+  returning * into w;
+  return w;
+end;
+$$;
+
+-- Regala un plan por N meses (sin cobro). Sus horas se renuevan cada mes mientras dure.
+create or replace function public.admin_gift_subscription(p_user uuid, p_plan text, p_months integer)
+returns public.subscriptions
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s public.subscriptions;
+  v_minutes integer;
+begin
+  select minutes into v_minutes from public.plans where id = p_plan;
+  if v_minutes is null or p_plan = 'gratis' then
+    raise exception 'plan inválido';
+  end if;
+  perform public.refresh_wallet(p_user);
+  update public.subscriptions set status = 'cancelled', paid_until = now(), updated_at = now()
+   where user_id = p_user and source = 'admin' and status <> 'cancelled';
+  insert into public.subscriptions (user_id, plan_id, source, status, amount, paid_until)
+  values (p_user, p_plan, 'admin', 'authorized', 0, now() + make_interval(months => greatest(1, least(p_months, 36))))
+  returning * into s;
+  update public.wallets
+     set plan_id = p_plan, plan_minutes = v_minutes, period_end = now() + interval '1 month', updated_at = now()
+   where user_id = p_user;
+  return s;
+end;
+$$;
+
+-- Lista de usuarios con su plan, saldo y uso.
+create or replace function public.admin_users(p_search text, p_limit integer, p_offset integer)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with base as (
+    select p.id, p.email, p.created_at, p.blocked, p.is_admin, u.last_sign_in_at
+      from public.profiles p
+      left join auth.users u on u.id = p.id
+     where coalesce(p_search, '') = '' or p.email ilike '%' || p_search || '%' or p.id::text = p_search
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from base),
+    'rows', coalesce((
+      select jsonb_agg(r order by r.created_at desc) from (
+        select b.id, b.email, b.created_at, b.last_sign_in_at, b.blocked, b.is_admin,
+               public.effective_plan(b.id) as plan,
+               w.plan_minutes, w.extra_minutes,
+               (select s.status || ':' || s.source from public.subscriptions s where s.user_id = b.id order by s.created_at desc limit 1) as last_sub,
+               (select coalesce(sum(ls.minutes), 0) from public.live_sessions ls where ls.user_id = b.id) as live_minutes,
+               (select max(ls.started_at) from public.live_sessions ls where ls.user_id = b.id) as last_live,
+               (select coalesce(sum(pa.amount), 0) from public.payments pa where pa.user_id = b.id) as paid
+          from base b
+          left join public.wallets w on w.user_id = b.id
+         order by b.created_at desc
+         limit greatest(1, least(p_limit, 200)) offset greatest(0, p_offset)
+      ) r), '[]'::jsonb)
+  );
+$$;
+
+-- Métricas generales del negocio.
+create or replace function public.admin_metrics()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'users_total', (select count(*) from public.profiles),
+    'users_7d', (select count(*) from public.profiles where created_at > now() - interval '7 days'),
+    'users_30d', (select count(*) from public.profiles where created_at > now() - interval '30 days'),
+    'blocked', (select count(*) from public.profiles where blocked),
+    'subs_by_plan', coalesce((
+      select jsonb_agg(x) from (
+        select s.plan_id, s.source, count(distinct s.user_id) as users
+          from public.subscriptions s
+         where s.paid_until > now() and s.status in ('authorized', 'paused', 'cancelled')
+         group by s.plan_id, s.source order by s.plan_id
+      ) x), '[]'::jsonb),
+    'mrr', (select coalesce(sum(amount), 0) from public.subscriptions where status = 'authorized' and source = 'mercadopago'),
+    'revenue_30d', (select coalesce(sum(amount), 0) from public.payments where created_at > now() - interval '30 days'),
+    'revenue_month', (select coalesce(sum(amount), 0) from public.payments where created_at >= date_trunc('month', now())),
+    'live_now', (select count(*) from public.live_sessions where ended_at is null),
+    'live_minutes_30d', (select coalesce(sum(minutes), 0) from public.live_sessions where started_at > now() - interval '30 days'),
+    'sessions_30d', (select count(*) from public.live_sessions where started_at > now() - interval '30 days'),
+    'streamers_30d', (select count(distinct user_id) from public.live_sessions where started_at > now() - interval '30 days' and minutes > 0),
+    'ai_designs_month', (select count(*) from public.ai_designs where status = 'lista' and created_at >= date_trunc('month', now())),
+    'summaries_month', (select count(*) from public.live_sessions where summary is not null and (summary->>'generated_at')::timestamptz >= date_trunc('month', now())),
+    'platforms_30d', coalesce((
+      select jsonb_object_agg(p, n) from (
+        select unnest(platforms) as p, count(*) as n from public.live_sessions
+         where started_at > now() - interval '30 days' group by 1
+      ) x), '{}'::jsonb),
+    'daily', coalesce((
+      select jsonb_agg(d order by d.day) from (
+        select g.day::date as day,
+               (select count(*) from public.profiles p where p.created_at::date = g.day::date) as signups,
+               (select coalesce(sum(minutes), 0) from public.live_sessions ls where ls.started_at::date = g.day::date) as live_minutes,
+               (select coalesce(sum(amount), 0) from public.payments pa where pa.created_at::date = g.day::date) as revenue
+          from generate_series(current_date - 29, current_date, interval '1 day') g(day)
+      ) d), '[]'::jsonb)
+  );
+$$;
+
+revoke execute on function public.admin_adjust_minutes(uuid, integer, integer) from public, anon, authenticated;
+revoke execute on function public.admin_gift_subscription(uuid, text, integer) from public, anon, authenticated;
+revoke execute on function public.admin_users(text, integer, integer) from public, anon, authenticated;
+revoke execute on function public.admin_metrics() from public, anon, authenticated;
+grant execute on function public.admin_adjust_minutes(uuid, integer, integer) to service_role;
+grant execute on function public.admin_gift_subscription(uuid, text, integer) to service_role;
+grant execute on function public.admin_users(text, integer, integer) to service_role;
+grant execute on function public.admin_metrics() to service_role;

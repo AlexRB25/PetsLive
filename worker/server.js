@@ -186,6 +186,13 @@ setInterval(() => {
   }
 }, 60000).unref();
 
+// Los comentarios guardados para resúmenes que nunca se pidieron se borran a los 30 días.
+setInterval(async () => {
+  if (!process.env.SUPABASE_URL) return;
+  const r = await db().from('session_comments').delete().lt('created_at', new Date(Date.now() - 30 * 86400000).toISOString());
+  if (r.error) console.error('limpieza de comentarios', r.error.message);
+}, 3600000).unref();
+
 // Al apagarse, las sesiones quedan abiertas en la base y se reanudan al arrancar (despliegues, caídas).
 async function resumeSessions() {
   const r = await db().from('live_sessions').select('id, user_id').is('ended_at', null);

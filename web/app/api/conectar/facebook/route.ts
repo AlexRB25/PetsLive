@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { signState } from "@/lib/oauth";
-import { authUser, fail, siteUrl } from "@/lib/server";
+import { activeUser, fail, siteUrl } from "@/lib/server";
 
 /** Inicia la conexión con Facebook para leer los directos de una página. */
 export async function POST(req: Request) {
   if (!process.env.FB_APP_ID || !process.env.FB_APP_SECRET || !process.env.TOKENS_KEY) return fail("Facebook todavía no está configurado en el servidor.", 503);
-  const user = await authUser(req);
-  if (!user) return fail("Entra con tu cuenta.", 401);
+  const user = await activeUser(req);
+  if (user instanceof NextResponse) return user;
   const q = new URLSearchParams({
     client_id: process.env.FB_APP_ID,
     redirect_uri: `${siteUrl(req)}/api/conectar/facebook/callback`,

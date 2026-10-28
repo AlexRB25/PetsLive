@@ -139,3 +139,69 @@ test('se detiene si no hay directo en 20 minutos', async () => {
   assert.equal(store.wallet, 100);
   t.engine.clear('fin');
 });
+
+test('cuenta estadísticas por plataforma y guarda comentarios sin nombre', async () => {
+  store.connections = [{ platform: 'twitch', settings: {} }];
+  store.wallet = 100;
+  store.sessions = [];
+  const inserted = [];
+  const origFrom = fakeDb.from;
+  fakeDb.from = (table) => {
+    const q = origFrom(table);
+    if (table === 'session_comments') q.insert = (rows) => { inserted.push(...rows); return q; };
+    return q;
+  };
+  const t = new Tenant('u5');
+  await t.load();
+  t.addClient(fakeClient());
+  await t.startSession();
+  clearInterval(t.meterTimer);
+  t.ingest({ type: 'chat', user: 'Ana', text: 'haz un tutorial de pintura' }, 'twitch');
+  t.ingest({ type: 'chat', user: 'Ana', text: 'saludos!' }, 'twitch');
+  t.ingest({ type: 'gift', user: 'Beto', gift: 'bits', amount: 100, value: 100 }, 'twitch');
+  t.ingest({ type: 'like', user: 'x', amount: 30 }, 'twitch');
+  await t.stopSession('fin');
+  const st = store.sessions[0].stats.twitch;
+  assert.equal(st.comments, 2);
+  assert.equal(st.chatters, 1);
+  assert.equal(st.giftValue, 100);
+  assert.equal(st.likes, 30);
+  assert.deepEqual(st.topChatters, [{ name: 'Ana', count: 2 }]);
+  assert.equal(inserted.length, 2);
+  assert.ok(inserted.every((c) => !('user' in c) && c.platform === 'twitch'));
+
+  // Con la opción apagada no se guarda texto.
+  t.config.summary.saveComments = false;
+  inserted.length = 0;
+  await t.startSession();
+  clearInterval(t.meterTimer);
+  t.ingest({ type: 'chat', user: 'Ana', text: 'hola' }, 'twitch');
+  await t.stopSession('fin');
+  assert.equal(inserted.length, 0);
+  fakeDb.from = origFrom;
+  t.engine.clear('fin');
+});
+
+test('una cuenta suspendida no inicia y se corta su directo', async () => {
+  store.connections = [{ platform: 'twitch', settings: {} }];
+  store.wallet = 100;
+  let blocked = true;
+  const origFrom = fakeDb.from;
+  fakeDb.from = (table) => {
+    if (table !== 'profiles') return origFrom(table);
+    const chain = { select: () => chain, eq: () => chain, maybeSingle: async () => ({ data: { blocked }, error: null }) };
+    return chain;
+  };
+  const t = new Tenant('u6');
+  await t.load();
+  t.addClient(fakeClient());
+  assert.match((await t.startSession()).error, /suspendida/);
+  blocked = false;
+  assert.equal((await t.startSession()).ok, true);
+  clearInterval(t.meterTimer);
+  blocked = true;
+  await t.meter();
+  assert.equal(t.session, null);
+  fakeDb.from = origFrom;
+  t.engine.clear('fin');
+});

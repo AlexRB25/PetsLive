@@ -75,6 +75,8 @@ export const DEFAULT_CONFIG = {
     command: { enabled: true, priority: 2, phrases: ['¡Va, {user}!', '¡A la orden, {user}!'] },
   },
   commands: { '!baila': 'baile', '!salta': 'salto', '!hola': 'saludo', '!fiesta': 'celebracion' },
+  // Guardar los comentarios del directo para el resumen (se borran al generarlo o a los 30 días).
+  summary: { saveComments: true },
 };
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -162,6 +164,7 @@ export function sanitizeConfig(input = {}) {
     durations: {},
     rules: {},
     commands: {},
+    summary: { saveComments: typeof i.summary?.saveComments === 'boolean' ? i.summary.saveComments : d.summary.saveComments },
   };
   for (const r of REACTIONS) out.durations[r] = clampNum(i.durations?.[r], 0, 15000, d.durations[r]);
   for (const [key, def] of Object.entries(d.rules)) {

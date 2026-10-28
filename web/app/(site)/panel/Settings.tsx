@@ -18,7 +18,7 @@ const RULE_LABELS: Record<string, string> = {
 
 const TABS = [
   ["mascota", "Mascota"], ["voz", "Voz"], ["limites", "Límites"], ["reglas", "Reglas y frases"],
-  ["comandos", "Comandos"], ["conexiones", "Conexiones"], ["uso", "Historial de uso"],
+  ["comandos", "Comandos"], ["conexiones", "Conexiones"], ["uso", "Directos y resúmenes"],
 ] as const;
 
 // Lee y escribe un valor por ruta ("behavior.maxPerMinute").
@@ -136,6 +136,7 @@ export default function Settings({ config, update, resetConfig, saved, connectio
             <Field {...p} path="behavior.schedule.start" label="Desde" type="time" />
             <Field {...p} path="behavior.schedule.end" label="Hasta" type="time" />
             <Field {...p} path="behavior.fallbackName" label="Nombre genérico" maxLength={24} />
+            <Field {...p} path="summary.saveComments" label="Guardar comentarios para el resumen del directo" type="checkbox" />
           </div>
           <p className="muted tiny">“Valor” de un regalo: diamantes en TikTok, bits en Twitch, monto en YouTube. El horario usa la hora del servidor.</p>
           <label className="block">

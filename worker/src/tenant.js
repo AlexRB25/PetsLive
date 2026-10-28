@@ -4,6 +4,7 @@ import { Engine } from '../../core/engine.js';
 import { sanitizeConfig } from '../../core/config.js';
 import { encryptJSON, decryptJSON } from '../../core/tokens.js';
 import { db } from './db.js';
+import { SessionStats } from './stats.js';
 import { TwitchConnector } from './connectors/twitch.js';
 import { YouTubeConnector } from './connectors/youtube.js';
 import { FacebookConnector } from './connectors/facebook.js';
@@ -13,6 +14,7 @@ export const CONNECTORS = { twitch: TwitchConnector, youtube: YouTubeConnector, 
 
 const NO_LIVE_LIMIT = 20 * 60000; // sin ninguna plataforma en vivo
 const NO_OVERLAY_LIMIT = 15 * 60000; // sin OBS conectado
+const MAX_COMMENTS = 5000; // comentarios guardados por directo para el resumen
 
 export class Tenant {
   constructor(userId) {
@@ -98,8 +100,15 @@ export class Tenant {
   ingest(evt, source) {
     this.lastActive = Date.now();
     if (source !== 'simulador') {
-      if (!this.session) return { ok: false };
-      this.session.events++;
+      const s = this.session;
+      if (!s) return { ok: false };
+      s.events++;
+      s.stats.add(evt, source);
+      // Comentarios para el resumen del directo (sin nombre; se borran al hacer el resumen).
+      const text = evt.type === 'chat' && typeof evt.text === 'string' ? evt.text.trim() : '';
+      if (text && this.config.summary.saveComments && s.savedComments + s.pending.length < MAX_COMMENTS) {
+        s.pending.push({ session_id: s.id, user_id: this.userId, platform: source, text: text.slice(0, 300) });
+      }
     }
     return this.engine.ingest(evt, source);
   }
@@ -115,6 +124,7 @@ export class Tenant {
   async startSession() {
     if (this.session) return { ok: true };
     const uid = this.userId;
+    if (await this.isBlocked()) return { ok: false, error: 'Tu cuenta está suspendida. Escríbenos si crees que es un error.' };
     const [conns, planId, left, toks] = await Promise.all([
       db().from('connections').select('platform, settings').eq('user_id', uid).eq('enabled', true),
       db().rpc('effective_plan', { p_user: uid }),
@@ -151,6 +161,9 @@ export class Tenant {
       reactions: 0,
       noLiveSince: now,
       noOverlaySince: this.counts().overlay ? null : now,
+      stats: new SessionStats(),
+      pending: [],
+      savedComments: 0,
     };
     this.platforms = {};
     for (const c of list) {
@@ -180,10 +193,16 @@ export class Tenant {
     if (r.error) console.error('no se guardó el token', this.userId, platform, r.error.message);
   }
 
+  async isBlocked() {
+    const r = await db().from('profiles').select('blocked').eq('id', this.userId).maybeSingle();
+    return Boolean(r.data?.blocked);
+  }
+
   // Cada minuto: solo se cobra si al menos una plataforma está en vivo.
   async meter() {
     const s = this.session;
     if (!s) return;
+    if (await this.isBlocked()) return this.stopSession('La cuenta fue suspendida.');
     const now = Date.now();
     const anyLive = Object.values(this.connectors).some((c) => c.state === 'live');
     s.noLiveSince = anyLive ? null : (s.noLiveSince ?? now);
@@ -198,8 +217,17 @@ export class Tenant {
       s.minutes++;
       s.remaining = r.data;
     }
-    await db().from('live_sessions').update({ minutes: s.minutes, events: s.events, reactions: s.reactions }).eq('id', s.id);
+    await this.flushComments(s);
+    await db().from('live_sessions').update({ minutes: s.minutes, events: s.events, reactions: s.reactions, stats: s.stats.toJSON() }).eq('id', s.id);
     this.send('session', this.sessionInfo(), ['panel']);
+  }
+
+  async flushComments(s) {
+    if (!s.pending.length) return;
+    const rows = s.pending.splice(0);
+    const r = await db().from('session_comments').insert(rows);
+    if (r.error) console.error('no se guardaron comentarios', s.id, r.error.message);
+    else s.savedComments += rows.length;
   }
 
   async stopSession(reason = 'Detenida desde el panel.') {
@@ -213,8 +241,9 @@ export class Tenant {
     this.engine.pushLog({ kind: 'sesión', action: 'terminada', detail: `${reason} (${s.minutes} min cobrados)` });
     this.send('session', this.sessionInfo(), ['panel']);
     this.send('platforms', this.platforms, ['panel']);
+    await this.flushComments(s);
     const r = await db().from('live_sessions')
-      .update({ ended_at: new Date().toISOString(), minutes: s.minutes, events: s.events, reactions: s.reactions, end_reason: reason })
+      .update({ ended_at: new Date().toISOString(), minutes: s.minutes, events: s.events, reactions: s.reactions, stats: s.stats.toJSON(), end_reason: reason })
       .eq('id', s.id);
     if (r.error) console.error('no se cerró la sesión', s.id, r.error.message);
   }

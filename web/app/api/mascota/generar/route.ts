@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { DesignError, generateDesign } from "@/lib/ai-design";
-import { authUser, db, dbConfigured, fail } from "@/lib/server";
+import { activeUser, db, dbConfigured, fail } from "@/lib/server";
 
 export const maxDuration = 300;
 
@@ -8,8 +8,8 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   if (!dbConfigured()) return fail("Falta configurar Supabase.", 503);
   if (!process.env.ANTHROPIC_API_KEY) return fail("La creación con IA todavía no está configurada.", 503);
-  const user = await authUser(req);
-  if (!user) return fail("Entra con tu cuenta.", 401);
+  const user = await activeUser(req);
+  if (user instanceof NextResponse) return user;
 
   const body = await req.json().catch(() => null);
   const prompt = String(body?.prompt ?? "").replace(/\s+/g, " ").trim();

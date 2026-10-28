@@ -38,7 +38,7 @@ export default function QueueLog({ state, log, maxPerMinute, call }: Props) {
         <h2 style={{ margin: 0 }}>Eventos recientes</h2>
         <button className="btn sm ghost" onClick={() => call("/panel/control", { action: "clear-history" }).catch(() => {})}>Borrar</button>
       </div>
-      <p className="muted tiny" style={{ margin: "4px 0 6px" }}>Solo en memoria; no se guarda el texto del chat.</p>
+      <p className="muted tiny" style={{ margin: "4px 0 6px" }}>Esta lista vive solo en memoria. Para el resumen del directo se guardan los comentarios sin nombres hasta generarlo (máx. 30 días); se desactiva en Límites.</p>
       <ul className="log">
         {log.map((e, i) => (
           <li key={`${e.ts}-${i}`}>

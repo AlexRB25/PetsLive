@@ -25,6 +25,20 @@ En el panel, pestaña Mascota, el usuario elige una de tres formas:
 2. **Su imagen**: sube un PNG transparente (o GIF/WebP/JPG, máx. 2 MB) al bucket público `mascotas` de Supabase Storage, en su carpeta `<user id>/`. Opcionalmente versiones feliz, triste y sorprendida. La imagen salta, baila y se mueve con las mismas animaciones de cuerpo.
 3. **Con IA**: describe la mascota y Claude Opus 5.5 devuelve un diseño en JSON por partes (cuerpo, orejas, brazos, pies, cola…) con salida estructurada. `core/mascot.js` lo valida (solo formas y colores de la paleta, nada de texto ni enlaces) y lo dibuja con el mismo motor que el catálogo, así que hereda las 8 animaciones, la cara, los colores y los accesorios. Cupo mensual por plan en `plans.ai_designs` (Gratis 1, Creator 5, Pro 20, Business 50, propuesta); los intentos fallidos no cuentan.
 
+## Resumen de cada directo
+
+- **Estadísticas por plataforma (todos los planes):** el worker cuenta comentarios, personas que comentaron, entradas, likes, follows, suscripciones, regalos y su valor, y quién comentó o regaló más (`live_sessions.stats`).
+- **Resumen del chat con IA (`plans.summaries`: Creator, Pro, Business):** lo más comentado, lo que más pidieron con ideas para aprovecharlo, preguntas repetidas, ánimo del chat, momentos destacados y sugerencias para el próximo directo. Se genera con Claude la primera vez que el usuario lo abre (`/api/resumen`) y se guarda en `live_sessions.summary`.
+- **Privacidad:** los comentarios se guardan sin nombres en `session_comments` (máx. 5000 por directo) solo para el resumen; se borran al generarlo o a los 30 días. El streamer puede desactivarlo en Límites.
+
+## Administración (/admin)
+
+Acceso: correos en `ADMIN_EMAILS` (Vercel) o `profiles.is_admin = true`. Todo lo que hace un admin queda en `admin_actions`.
+
+- **Resumen:** usuarios y altas, suscripciones activas por plan, ingreso mensual recurrente, cobrado, directos en vivo, horas en vivo, uso de IA y gráficas diarias de 30 días.
+- **Usuarios:** búsqueda por correo o id y ficha con plan, horas, suscripciones, pagos, directos, conexiones, mascotas con IA y notas. Acciones: dar o quitar horas (del plan o extra), regalar un plan por N meses (se renueva cada mes mientras dure), cancelar suscripción al final del periodo o de inmediato quitando horas, suspender o reactivar la cuenta (bloquea el inicio de sesión en Supabase Auth y el worker corta su directo en menos de un minuto) y dar o quitar permiso de admin.
+- **Planes y recargas:** precio, horas, plataformas, cupo de mascotas IA, resumen IA y activar o desactivar.
+
 ## Cobro
 
 - Planes en la tabla `plans` (Gratis 3 h, Creator $99 / 30 h, Pro $199 / 80 h, Business $399 / 200 h) y recargas en `hour_packs` (5, 15 y 40 h). Son los precios de prueba del documento; se editan en Supabase.

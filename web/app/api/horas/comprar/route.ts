@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { CURRENCY, mercadoPago, paymentsConfigured } from "@/lib/mercadopago";
-import { authUser, db, dbConfigured, fail, siteUrl } from "@/lib/server";
+import { activeUser, db, dbConfigured, fail, siteUrl } from "@/lib/server";
 
 /** Recarga de horas en vivo (pago único con Checkout Pro). Las horas extra no caducan. */
 export async function POST(req: Request) {
   if (!dbConfigured() || !paymentsConfigured()) return fail("Los pagos todavía no están configurados.", 503);
-  const user = await authUser(req);
-  if (!user) return fail("Entra con tu cuenta.", 401);
+  const user = await activeUser(req);
+  if (user instanceof NextResponse) return user;
 
   const body = await req.json().catch(() => null);
   const pack = await db().from("hour_packs").select("id, name, price_mxn").eq("id", String(body?.pack ?? "")).eq("active", true).maybeSingle();

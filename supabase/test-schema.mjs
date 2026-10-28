@@ -8,7 +8,7 @@ const db = new PGlite({ extensions: { pgcrypto } });
 const schema = readFileSync(process.argv[2], 'utf8');
 await db.exec(`
 create role anon; create role authenticated; create role service_role;
-create schema auth; create table auth.users (id uuid primary key, email text);
+create schema auth; create table auth.users (id uuid primary key, email text, created_at timestamptz default now(), last_sign_in_at timestamptz);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.sub', true), '')::uuid $$;
 grant usage on schema auth to anon, authenticated, service_role; grant execute on function auth.uid() to anon, authenticated;
 grant usage on schema public to anon, authenticated, service_role;
@@ -91,3 +91,36 @@ ok((await tryAs(V2, `insert into ai_designs (user_id, prompt, status) values ($1
 ok((await tryAs(V2, `insert into storage.objects (bucket_id, name) values ('mascotas', $1)`, [V2 + '/base.png'])) === 'ok', 'sube a su carpeta');
 ok((await tryAs(V2, `insert into storage.objects (bucket_id, name) values ('mascotas', $1)`, [U + '/base.png'])) !== 'ok', 'no sube a carpeta ajena');
 ok((await db.query(`select public from storage.buckets where id = 'mascotas'`)).rows[0].public === true, 'bucket público');
+// resumen de directos
+const sid = (await db.query(`insert into live_sessions (user_id) values ($1) returning id`, [V2])).rows[0].id;
+await db.query(`insert into session_comments (session_id, user_id, platform, text) values ($1,$2,'tiktok','hola')`, [sid, V2]);
+ok((await tryAs(V2, `select * from session_comments`)) !== 'ok', 'el usuario no lee comentarios guardados');
+ok((await as(V2, `select stats, summary from live_sessions where id = $1`, [sid])).rows[0].stats !== undefined, 've estadísticas de su directo');
+ok((await tryAs(V2, `update live_sessions set summary = '{}' where id = $1`, [sid])) !== 'ok', 'no edita su resumen');
+ok((await db.query(`select summaries from plans where id = 'gratis'`)).rows[0].summaries === false && (await db.query(`select summaries from plans where id = 'pro'`)).rows[0].summaries === true, 'resumen IA solo en planes de pago');
+
+// administración
+ok((await db.query(`select count(*)::int as n from profiles`)).rows[0].n === 3, 'perfiles para cuentas nuevas y existentes');
+ok((await tryAs(V2, `update profiles set is_admin = true where id = $1`, [V2])) !== 'ok', 'nadie se hace admin solo');
+ok((await as(V2, `select * from profiles`)).rows.length === 1, 'solo ve su perfil');
+for (const fn of [`admin_metrics()`, `admin_users('', 10, 0)`, `admin_adjust_minutes('${V2}', 0, 999)`, `admin_gift_subscription('${V2}', 'pro', 1)`]) {
+  ok((await tryAs(V2, `select ${fn}`)) !== 'ok', `usuario no puede ${fn.split('(')[0]}`);
+}
+const w0 = (await db.query(`select plan_minutes, extra_minutes from wallets where user_id = $1`, [V2])).rows[0];
+await db.query(`select admin_adjust_minutes($1, -99999, 120)`, [V2]);
+const w1 = (await db.query(`select plan_minutes, extra_minutes from wallets where user_id = $1`, [V2])).rows[0];
+ok(w1.plan_minutes === 0 && w1.extra_minutes === w0.extra_minutes + 120, 'ajuste de minutos sin bajar de cero');
+await db.query(`select admin_gift_subscription($1, 'creator', 3)`, [V2]);
+ok((await db.query(`select effective_plan($1) as p`, [V2])).rows[0].p === 'creator', 'plan regalado vigente');
+ok((await db.query(`select plan_minutes from wallets where user_id = $1`, [V2])).rows[0].plan_minutes === 1800, 'plan regalado da sus horas');
+await db.query(`update wallets set period_end = now() - interval '1 day', plan_minutes = 5 where user_id = $1`, [V2]);
+ok((await db.query(`select consume_minutes($1, 0) as r`, [V2])).rows[0].r === 1800 + w0.extra_minutes + 120, 'plan regalado se renueva cada mes');
+await db.query(`select admin_gift_subscription($1, 'pro', 1)`, [V2]);
+ok((await db.query(`select count(*)::int as n from subscriptions where user_id = $1 and source = 'admin' and status = 'authorized'`, [V2])).rows[0].n === 1, 'un solo regalo activo');
+let failed = false;
+try { await db.query(`select admin_gift_subscription($1, 'gratis', 1)`, [V2]); } catch { failed = true; }
+ok(failed, 'no regala el plan gratis');
+const list = (await db.query(`select admin_users('c@c', 10, 0) as r`)).rows[0].r;
+ok(list.total === 1 && list.rows[0].plan === 'pro', 'lista de usuarios con búsqueda');
+const m = (await db.query(`select admin_metrics() as m`)).rows[0].m;
+ok(m.users_total === 3 && m.daily.length === 30 && m.subs_by_plan.length >= 1, 'métricas');

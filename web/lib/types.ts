@@ -24,6 +24,7 @@ export interface Plan {
   minutes: number;
   max_platforms: number;
   ai_designs: number;
+  summaries: boolean;
   description: string;
   sort: number;
 }

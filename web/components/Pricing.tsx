@@ -41,6 +41,7 @@ export default function Pricing({ currentPlan, onSubscribe, onBuyPack, busy }: P
               <li>{hours(p.minutes)} en vivo al mes</li>
               <li>{p.max_platforms === 1 ? "1 plataforma" : `Hasta ${p.max_platforms} plataformas`} a la vez</li>
               <li>{p.ai_designs > 0 ? `${p.ai_designs} mascota${p.ai_designs > 1 ? "s" : ""} creada${p.ai_designs > 1 ? "s" : ""} con IA al mes` : "Catálogo de mascotas e imagen propia"}</li>
+              <li>{p.summaries ? "Estadísticas y resumen del chat con IA" : "Estadísticas de cada directo"}</li>
               <li>Simulador y pruebas ilimitadas</li>
               {p.description && <li>{p.description}</li>}
             </ul>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { CURRENCY, mercadoPago, paymentsConfigured } from "@/lib/mercadopago";
-import { authUser, db, dbConfigured, fail, siteUrl } from "@/lib/server";
+import { activeUser, db, dbConfigured, fail, siteUrl } from "@/lib/server";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -10,8 +10,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export async function POST(req: Request) {
   if (!dbConfigured() || !paymentsConfigured()) return fail("Los pagos todavía no están configurados.", 503);
-  const user = await authUser(req);
-  if (!user) return fail("Entra con tu cuenta para suscribirte.", 401);
+  const user = await activeUser(req);
+  if (user instanceof NextResponse) return user;
 
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? user.email ?? "").trim();
