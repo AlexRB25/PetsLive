@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
     PB_SUPABASE_URL: process.env.PB_SUPABASE_URL ?? "",
     PB_SUPABASE_PUBLISHABLE_KEY: process.env.PB_SUPABASE_PUBLISHABLE_KEY ?? "",
     PB_WORKER_URL: process.env.PB_WORKER_URL ?? "",
+    // Versión publicada: el overlay se recarga solo cuando hay una nueva (ver /api/version).
+    PB_BUILD: process.env.VERCEL_GIT_COMMIT_SHA ?? "dev",
   },
 };
 

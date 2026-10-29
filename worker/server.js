@@ -168,6 +168,8 @@ async function route(req, res, url) {
       case 'game-reset': t.engine.game.reset(); break;
       case 'clear-history': t.engine.log = []; t.send('history', [], ['panel']); break;
       case 'reload': await t.load(); keyCache.clear(); break;
+      // Recarga la página del overlay en OBS / LIVE Studio (para tomar una versión nueva sin tocar la PC).
+      case 'refresh-overlay': t.send('refresh', {}, ['overlay', 'preview']); break;
       case 'start': return json(res, 200, await t.startSession());
       case 'stop': await t.stopSession('Detenida desde el panel.'); break;
       default: return json(res, 400, { error: 'acción desconocida' });

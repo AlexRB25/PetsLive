@@ -244,3 +244,16 @@ test('el historial incluye el comentario leído', () => {
   assert.equal(log.find((e) => e.kind === 'follow').text, undefined);
   engine.clear('fin');
 });
+
+test('fondo: valida modo, tipo, imagen y textos', () => {
+  const d = sanitizeConfig({});
+  assert.equal(d.scene.mode, 'apagado');
+  const s = sanitizeConfig({ scene: { mode: 'sin-directo', kind: 'imagen', image: 'javascript:alert(1)', preset: 'x', title: '<b>Ya volvemos</b>', color: 'red' } }).scene;
+  assert.equal(s.mode, 'sin-directo');
+  assert.equal(s.kind, 'preset'); // imagen inválida → vuelve al degradado
+  assert.equal(s.image, '');
+  assert.equal(s.preset, 'atardecer');
+  assert.equal(s.title, 'bYa volvemos/b');
+  assert.equal(s.color, '#1e1b4b');
+  assert.equal(sanitizeConfig({ scene: { kind: 'imagen', image: 'https://x.supabase.co/storage/v1/object/public/mascotas/u/fondo.png' } }).scene.kind, 'imagen');
+});

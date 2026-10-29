@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase-browser";
-import { hours, PLATFORM_LABELS, type AccountStatus, type Connection, type Platform } from "@/lib/types";
+import { hours, PLATFORM_LABELS, type AccountStatus, type Connection, type MascotConfig, type Platform } from "@/lib/types";
 import type { useWorker } from "./useWorker";
 
 const DOT: Record<string, string> = { live: "ok", waiting: "warn", connecting: "warn", error: "bad", off: "" };
@@ -22,15 +22,18 @@ interface Props {
   overlayKey: string;
   onNewKey: (k: string) => void;
   voiceFromPanel: boolean;
+  config: MascotConfig;
+  update: (fn: (c: MascotConfig) => void) => void;
 }
 
-export default function LiveCard({ worker, status, connections, overlayKey, onNewKey, voiceFromPanel }: Props) {
+export default function LiveCard({ worker, status, connections, overlayKey, onNewKey, voiceFromPanel, config, update }: Props) {
   const { session, platforms, clients } = worker;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
   const [, tick] = useState(0);
   const [voiceOk, setVoiceOk] = useState(false);
+  const [refreshed, setRefreshed] = useState(false);
 
   useEffect(() => {
     if (!session.active) return;
@@ -75,6 +78,13 @@ export default function LiveCard({ worker, status, connections, overlayKey, onNe
     worker.call("/panel/control", { action: "reload" }).catch(() => {});
   }
 
+  function refreshOverlay() {
+    worker.call("/panel/control", { action: "refresh-overlay" }).catch(() => {});
+    setRefreshed(true);
+    setTimeout(() => setRefreshed(false), 2000);
+  }
+
+  const sceneOn = config.scene.mode !== "apagado";
   const shown: Platform[] = session.active ? (session.platforms ?? []) : enabled;
 
   return (
@@ -112,6 +122,17 @@ export default function LiveCard({ worker, status, connections, overlayKey, onNe
         ) : (
           <div className="muted small">Activa al menos una plataforma: <button className="link" onClick={() => window.dispatchEvent(new CustomEvent("petslive-tab", { detail: "conexiones" }))}>ir a Conexiones</button>.</div>
         )}
+
+        {/* Controles rápidos durante el directo; los detalles están en las pestañas Juegos y Fondo. */}
+        <div className="row" style={{ flexWrap: "wrap", gap: 12 }}>
+          <label className="check"><input type="checkbox" checked={config.game.enabled} onChange={(e) => update((c) => { c.game.enabled = e.target.checked; })} /> Juego “{config.game.title}”</label>
+          <label className="check" title={config.scene.mode === "sin-directo" ? "Se muestra solo mientras el directo no está iniciado" : undefined}>
+            <input type="checkbox" checked={sceneOn} onChange={(e) => update((c) => { c.scene.mode = e.target.checked ? "encendido" : "apagado"; })} /> Fondo{config.scene.mode === "sin-directo" ? " (sin directo)" : ""}
+          </label>
+          <button className="btn sm" disabled={!worker.connected || !clients.overlay} onClick={refreshOverlay} title="Recarga la página de la mascota en OBS / LIVE Studio sin tocar la computadora">
+            {refreshed ? "Recargando…" : "Recargar overlay"}
+          </button>
+        </div>
 
         {err && <div className="err small">{err}</div>}
         {!session.active && session.lastEnd && <div className="muted tiny">Último directo: {session.lastEnd.reason} ({session.lastEnd.minutes} min)</div>}

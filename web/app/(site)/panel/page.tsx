@@ -106,6 +106,8 @@ export default function Panel() {
               overlayKey={overlayKey}
               onNewKey={setOverlayKey}
               voiceFromPanel={config.voice.output === "panel" && !config.behavior.silent}
+              config={config}
+              update={update}
             />
             <div className="panel-grid">
               <Preview overlayKey={overlayKey} call={worker.call} mascot={config.mascot} onMove={(patch) => update((c) => Object.assign(c.mascot, patch))} />

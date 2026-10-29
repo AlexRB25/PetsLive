@@ -119,6 +119,7 @@ export class Tenant {
     this.lastActive = Date.now();
     this.sendTo(client, 'config', this.config);
     this.sendTo(client, 'game', this.engine.game.state());
+    this.sendTo(client, 'live', { active: Boolean(this.session) });
     if (client.role === 'panel') {
       this.sendTo(client, 'state', this.engine.state());
       this.sendTo(client, 'history', this.engine.log);
@@ -238,6 +239,7 @@ export class Tenant {
     this.idleTimer = setInterval(() => this.engine.idleTick(), 5000);
     this.engine.pushLog({ kind: 'sesión', action: 'iniciada', detail: this.session.platforms.join(', ') });
     this.send('session', this.sessionInfo(), ['panel']);
+    this.send('live', { active: true });
     return { ok: true };
   }
 
@@ -295,6 +297,7 @@ export class Tenant {
     this.lastEnd = { reason, at: Date.now(), minutes: s.minutes };
     this.engine.pushLog({ kind: 'sesión', action: 'terminada', detail: `${reason} (${s.minutes} min cobrados)` });
     this.send('session', this.sessionInfo(), ['panel']);
+    this.send('live', { active: false });
     this.send('platforms', this.platforms, ['panel']);
     await this.flushComments(s);
     const r = await db().from('live_sessions')

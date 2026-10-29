@@ -7,6 +7,7 @@ import { REACTION_LABELS, type Connection, type MascotConfig } from "@/lib/types
 import Connections from "./Connections";
 import MascotPicker from "./MascotPicker";
 import GameSettings from "./GameSettings";
+import SceneSettings from "./SceneSettings";
 import type { GameState } from "@/lib/game-widget";
 import VoicePicker from "./VoicePicker";
 import Usage from "./Usage";
@@ -22,7 +23,7 @@ const RULE_LABELS: Record<string, string> = {
 
 const TABS = [
   ["mascota", "Mascota"], ["voz", "Voz"], ["limites", "Límites"], ["reglas", "Reglas y frases"],
-  ["comandos", "Comandos"], ["juegos", "Juegos"], ["conexiones", "Conexiones"], ["uso", "Directos y resúmenes"],
+  ["comandos", "Comandos"], ["juegos", "Juegos"], ["fondo", "Fondo"], ["conexiones", "Conexiones"], ["uso", "Directos y resúmenes"],
 ] as const;
 
 // Lee y escribe un valor por ruta ("behavior.maxPerMinute").
@@ -238,6 +239,7 @@ export default function Settings({ config, update, resetConfig, saved, connectio
       )}
 
       {tab === "conexiones" && <Connections connections={connections} reload={reloadConnections} maxPlatforms={maxPlatforms} sessionActive={sessionActive} />}
+      {tab === "fondo" && <SceneSettings config={config} update={update} />}
       {tab === "juegos" && <GameSettings config={config} update={update} state={game} call={call} />}
       {tab === "uso" && <Usage />}
     </section>

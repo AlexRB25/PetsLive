@@ -8,6 +8,16 @@ export const VOICE_ENGINES = ['navegador', 'grabada', 'elevenlabs', 'elevenlabs_
 // Grupos de audios grabados: uno por reacción y otro para las invitaciones.
 export const CLIP_KEYS = ['saludo', 'salto', 'baile', 'sorpresa', 'celebracion', 'tristeza', 'agradecimiento', 'idle'];
 
+// Fondos listos para la pantalla de espera (los dibuja el overlay).
+export const SCENE_PRESETS = {
+  atardecer: 'linear-gradient(160deg, #ff7e5f 0%, #feb47b 45%, #6a3093 100%)',
+  noche: 'linear-gradient(180deg, #0f172a 0%, #312e81 60%, #7c3aed 100%)',
+  espacio: 'radial-gradient(2px 2px at 20% 30%, #fff, transparent), radial-gradient(2px 2px at 70% 15%, #fff, transparent), radial-gradient(1.5px 1.5px at 40% 70%, #fff, transparent), radial-gradient(2px 2px at 85% 60%, #fff, transparent), radial-gradient(1.5px 1.5px at 10% 85%, #fff, transparent), radial-gradient(ellipse at 50% 120%, #4c1d95 0%, #0b0820 60%)',
+  bosque: 'linear-gradient(180deg, #a7f3d0 0%, #34d399 40%, #065f46 100%)',
+  oceano: 'linear-gradient(180deg, #67e8f9 0%, #0ea5e9 45%, #1e3a8a 100%)',
+  caramelo: 'linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 50%, #93c5fd 100%)',
+};
+
 export const EVENT_TYPES = ['join', 'chat', 'follow', 'like', 'gift', 'sub', 'purchase', 'win', 'lose', 'scare'];
 
 export const DEFAULT_CONFIG = {
@@ -111,6 +121,16 @@ export const DEFAULT_CONFIG = {
   summary: { saveComments: true },
   // Juego "¡Llévame a la cima!" (ver game.js).
   game: DEFAULT_GAME,
+  // Fondo que tapa la transmisión (pantalla de espera). La mascota y el juego quedan encima.
+  scene: {
+    mode: 'apagado', // apagado | encendido | sin-directo (mientras el directo no está iniciado en el panel)
+    kind: 'preset', // preset | color | imagen
+    preset: 'atardecer',
+    color: '#1e1b4b',
+    image: '',
+    title: 'Volvemos en un momento',
+    subtitle: '',
+  },
 };
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -147,6 +167,7 @@ export function sanitizeConfig(input = {}) {
   const v = i.voice || {};
   const b = i.behavior || {};
   const s = b.schedule || {};
+  const sc = i.scene || {};
   const out = {
     mascot: {
       kind: oneOf(m.kind, ['catalogo', 'ia', 'imagen'], d.mascot.kind),
@@ -209,6 +230,15 @@ export function sanitizeConfig(input = {}) {
     rules: {},
     commands: {},
     game: sanitizeGame(i.game),
+    scene: {
+      mode: oneOf(sc.mode, ['apagado', 'encendido', 'sin-directo'], d.scene.mode),
+      kind: oneOf(sc.kind, ['preset', 'color', 'imagen'], d.scene.kind),
+      preset: oneOf(sc.preset, Object.keys(SCENE_PRESETS), d.scene.preset),
+      color: color(sc.color, d.scene.color),
+      image: imageUrl(sc.image),
+      title: str(sc.title, 60, d.scene.title).replace(/[<>{}]/g, '').trim(),
+      subtitle: str(sc.subtitle, 100, d.scene.subtitle).replace(/[<>{}]/g, '').trim(),
+    },
     summary: { saveComments: typeof i.summary?.saveComments === 'boolean' ? i.summary.saveComments : d.summary.saveComments },
   };
   for (const r of REACTIONS) out.durations[r] = clampNum(i.durations?.[r], 0, 15000, d.durations[r]);
@@ -231,6 +261,7 @@ export function sanitizeConfig(input = {}) {
   // Sin diseño o sin imagen base, vuelve al catálogo.
   if (out.mascot.kind === 'ia' && !out.mascot.design) out.mascot.kind = 'catalogo';
   if (out.mascot.kind === 'imagen' && !out.mascot.images.base) out.mascot.kind = 'catalogo';
+  if (out.scene.kind === 'imagen' && !out.scene.image) out.scene.kind = 'preset';
   return out;
 }
 

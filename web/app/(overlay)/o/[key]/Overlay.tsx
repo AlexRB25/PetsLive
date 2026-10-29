@@ -2,12 +2,19 @@
 // Overlay de OBS: la mascota recibe del worker qué animación hacer, con qué texto y por cuánto tiempo.
 import { useEffect, useRef, useState } from "react";
 import { mascotHTML, MASCOT_CSS } from "@core/mascot.js";
+import { SCENE_PRESETS } from "@core/config.js";
 import { VoicePlayer } from "@/lib/voice-player";
 import { GAME_CSS, GameWidget, type GameState } from "@/lib/game-widget";
 import { WORKER_URL } from "@/lib/supabase-browser";
 import type { MascotConfig } from "@/lib/types";
 
 const CSS = `
+#scene { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 6vmin;
+  background-size: cover; background-position: center; opacity: 0; transition: opacity .6s; pointer-events: none; text-align: center;
+  font-family: "Nunito", "Segoe UI Rounded", "Segoe UI", system-ui, sans-serif; color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,.55); }
+#scene.on { opacity: 1; }
+#scene h1 { margin: 0; font-size: 7vmin; font-weight: 900; line-height: 1.1; }
+#scene p { margin: 0; font-size: 3.6vmin; font-weight: 700; opacity: .92; }
 #stage { position: absolute; display: flex; flex-direction: column; align-items: center; font-family: "Nunito", "Segoe UI Rounded", "Segoe UI", system-ui, sans-serif; }
 #stage.top { flex-direction: column-reverse; }
 .bubble { position: relative; max-width: 150%; margin-bottom: 10px; padding: .55em .9em; background: #fff; color: #231a35; border: 4px solid #231a35;
@@ -33,6 +40,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
   const bubble = useRef<HTMLDivElement>(null);
   const fx = useRef<HTMLDivElement>(null);
   const gameRoot = useRef<HTMLDivElement>(null);
+  const scene = useRef<HTMLDivElement>(null);
   const [lost, setLost] = useState(false);
   const [unknown, setUnknown] = useState(false);
 
@@ -133,6 +141,19 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       backTimer = setTimeout(idle, p.duration);
     };
 
+    // Fondo (pantalla de espera): encendido, o solo mientras el directo no está iniciado.
+    let live = false;
+    const paintScene = () => {
+      const sc = config!.scene;
+      const el = scene.current!;
+      el.style.background = sc.kind === "imagen" && sc.image
+        ? `center / cover no-repeat url("${sc.image}")`
+        : sc.kind === "color" ? sc.color : SCENE_PRESETS[sc.preset as keyof typeof SCENE_PRESETS];
+      (el.firstElementChild as HTMLElement).textContent = sc.title;
+      (el.lastElementChild as HTMLElement).textContent = sc.subtitle;
+      el.classList.toggle("on", sc.mode === "encendido" || (sc.mode === "sin-directo" && !live));
+    };
+
     // Juego "¡Llévame a la cima!": al ganar, confeti también en la montaña.
     const game = new GameWidget(gameRoot.current!, () => burst("confetti"));
     let gameState: GameState | null = null;
@@ -149,6 +170,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     es.addEventListener("config", (e) => {
       config = JSON.parse((e as MessageEvent).data);
       layout();
+      paintScene();
       if (gameState) game.update({ ...gameState, delta: 0 }, config!.mascot);
     });
     es.addEventListener("game", (e) => {
@@ -158,6 +180,18 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     es.addEventListener("play", (e) => config && play(JSON.parse((e as MessageEvent).data)));
     es.addEventListener("audio", (e) => { const c = speaks(); if (c) voice.audio(JSON.parse((e as MessageEvent).data), c); });
     es.addEventListener("idle", idle);
+    es.addEventListener("live", (e) => { live = JSON.parse((e as MessageEvent).data).active; if (config) paintScene(); });
+    // Recarga pedida desde el panel (para tomar cambios sin tocar OBS / LIVE Studio).
+    es.addEventListener("refresh", () => location.reload());
+
+    // Al publicar una versión nueva de la web, el overlay se recarga solo cuando la mascota está quieta.
+    const build = process.env.PB_BUILD;
+    const versionTimer = build && build !== "dev" ? setInterval(async () => {
+      try {
+        const v = await (await fetch("/api/version", { cache: "no-store" })).json();
+        if (v.build && v.build !== build && !bubble.current!.classList.contains("show")) location.reload();
+      } catch { /* sin red: se intenta en la siguiente vuelta */ }
+    }, 180000) : undefined;
     // En la vista previa del panel, la mascota se mueve al instante mientras se arrastra.
     const onMessage = (e: MessageEvent) => {
       if (!preview || e.origin !== location.origin || e.data?.type !== "petslive-move" || !config) return;
@@ -165,7 +199,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       layout();
     };
     window.addEventListener("message", onMessage);
-    return () => { es.close(); clearTimeout(backTimer); clearTimeout(bubbleTimer); window.removeEventListener("message", onMessage); };
+    return () => { es.close(); clearInterval(versionTimer); clearTimeout(backTimer); clearTimeout(bubbleTimer); window.removeEventListener("message", onMessage); };
   }, [overlayKey, preview]);
 
   const notice = (text: string) => (
@@ -176,6 +210,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     <>
       <style>{CSS}</style>
       {background && <style>{`html, body { background: ${background} !important; }`}</style>}
+      <div id="scene" ref={scene}><h1 /><p /></div>
       <div ref={gameRoot} />
       <div id="stage" ref={stage}>
         <div className="bubble" ref={bubble} />
