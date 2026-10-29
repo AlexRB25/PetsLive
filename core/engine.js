@@ -316,7 +316,7 @@ export class Engine {
     const text = b.silent ? '' : (item.test ? item.fixedText : this.render(item));
     const duration = this.config.durations[item.reaction] || 2500;
     this.current = { ...item, startedAt: t, duration, text };
-    this.emit('play', { id: item.id, reaction: item.reaction, text, duration, priority: item.priority });
+    this.emit('play', { id: item.id, reaction: item.reaction, rule: item.rule, text, duration, priority: item.priority });
     this.pushLog({ kind: 'reacción', action: 'reproducido', detail: `${item.label} → ${item.reaction}${text ? ` · “${text}”` : ''}` });
     this.broadcastState();
     this.playTimer = setTimeout(() => {

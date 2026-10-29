@@ -3,6 +3,10 @@ import { SPECIES, validateDesign } from './mascot.js';
 
 export const REACTIONS = ['reposo', 'saludo', 'salto', 'baile', 'sorpresa', 'celebracion', 'tristeza', 'agradecimiento'];
 
+export const VOICE_ENGINES = ['navegador', 'grabada', 'elevenlabs', 'elevenlabs_propia'];
+// Grupos de audios grabados: uno por reacción y otro para las invitaciones.
+export const CLIP_KEYS = ['saludo', 'salto', 'baile', 'sorpresa', 'celebracion', 'tristeza', 'agradecimiento', 'idle'];
+
 export const EVENT_TYPES = ['join', 'chat', 'follow', 'like', 'gift', 'sub', 'purchase', 'win', 'lose', 'scare'];
 
 export const DEFAULT_CONFIG = {
@@ -23,6 +27,12 @@ export const DEFAULT_CONFIG = {
   },
   voice: {
     output: 'panel', // overlay | panel | off
+    // navegador: voces del sistema (gratis) · grabada: audios del streamer · elevenlabs: voces de la plataforma
+    // (cupo por plan) · elevenlabs_propia: su propia cuenta de ElevenLabs (incluye su voz clonada)
+    engine: 'navegador',
+    clips: {}, // { saludo: [url, …], celebracion: […], …, idle: […] }
+    elevenVoice: '',
+    ownVoice: '',
     lang: 'es-MX',
     rate: 1.05,
     pitch: 1.5,
@@ -111,6 +121,8 @@ const oneOf = (v, list, def) => (list.includes(v) ? v : def);
 // Solo enlaces https (las imágenes viven en Supabase Storage).
 const imageUrl = (v) => (typeof v === 'string' && /^https:\/\/[^\s"'<>]{8,480}$/.test(v) ? v : '');
 
+const audioUrl = (v) => (typeof v === 'string' && /^https:\/\/[^\s"'<>]{8,480}$/.test(v) ? v : '');
+
 const time = (v, def) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : def);
 
 const phrases = (v, def) => {
@@ -145,6 +157,10 @@ export function sanitizeConfig(input = {}) {
     },
     voice: {
       output: oneOf(v.output, ['overlay', 'panel', 'off'], d.voice.output),
+      engine: oneOf(v.engine, VOICE_ENGINES, d.voice.engine),
+      clips: Object.fromEntries(CLIP_KEYS.map((k) => [k, Array.isArray(v.clips?.[k]) ? v.clips[k].map(audioUrl).filter(Boolean).slice(0, 5) : []]).filter(([, l]) => l.length)),
+      elevenVoice: typeof v.elevenVoice === 'string' && /^[A-Za-z0-9]{1,40}$/.test(v.elevenVoice) ? v.elevenVoice : '',
+      ownVoice: typeof v.ownVoice === 'string' && /^[A-Za-z0-9]{1,40}$/.test(v.ownVoice) ? v.ownVoice : '',
       lang: str(v.lang, 12, d.voice.lang),
       rate: clampNum(v.rate, 0.5, 2, d.voice.rate),
       pitch: clampNum(v.pitch, 0, 2, d.voice.pitch),

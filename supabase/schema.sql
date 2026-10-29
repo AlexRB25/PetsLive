@@ -442,10 +442,11 @@ grant execute on function public.reserve_ai_design(uuid, text) to service_role;
 revoke execute on function public.my_ai_quota() from public, anon;
 grant execute on function public.my_ai_quota() to authenticated;
 
--- Imágenes de mascotas: bucket público (el overlay las muestra sin sesión); cada usuario solo
+-- Imágenes y audios grabados de mascotas: bucket público (el overlay las muestra sin sesión); cada usuario solo
 -- escribe en su carpeta <user id>/. Máximo 2 MB; PNG, GIF, WebP o JPG.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('mascotas', 'mascotas', true, 2097152, array['image/png', 'image/gif', 'image/webp', 'image/jpeg'])
+values ('mascotas', 'mascotas', true, 2097152, array['image/png', 'image/gif', 'image/webp', 'image/jpeg',
+        'audio/webm', 'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/aac'])
 on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists mascotas_insert on storage.objects;
@@ -653,3 +654,68 @@ grant execute on function public.admin_adjust_minutes(uuid, integer, integer) to
 grant execute on function public.admin_gift_subscription(uuid, text, integer) to service_role;
 grant execute on function public.admin_users(text, integer, integer) to service_role;
 grant execute on function public.admin_metrics() to service_role;
+
+-- ============ voces ============
+
+-- La llave de ElevenLabs del propio usuario se guarda cifrada junto a los tokens de Twitch y Facebook.
+alter table public.platform_tokens drop constraint if exists platform_tokens_platform_check;
+alter table public.platform_tokens add constraint platform_tokens_platform_check
+  check (platform in ('twitch', 'facebook', 'elevenlabs'));
+
+-- Caracteres al mes de voces de ElevenLabs de la plataforma (las pagas tú). Propuesta inicial.
+alter table public.plans add column if not exists tts_chars integer not null default 0;
+update public.plans set tts_chars = 15000  where id = 'creator'  and tts_chars = 0;
+update public.plans set tts_chars = 40000  where id = 'pro'      and tts_chars = 0;
+update public.plans set tts_chars = 100000 where id = 'business' and tts_chars = 0;
+
+create table if not exists public.tts_usage (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  month date not null,
+  chars integer not null default 0,
+  primary key (user_id, month)
+);
+alter table public.tts_usage enable row level security;
+drop policy if exists tts_usage_own on public.tts_usage;
+create policy tts_usage_own on public.tts_usage for select to authenticated using (user_id = auth.uid());
+revoke insert, update, delete on public.tts_usage from anon, authenticated;
+
+-- Descuenta caracteres del cupo del mes. false si no alcanza (y entonces no descuenta).
+create or replace function public.consume_tts(p_user uuid, p_chars integer)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit integer;
+  v_month date := date_trunc('month', now())::date;
+  v_used integer;
+begin
+  select tts_chars into v_limit from public.plans where id = public.effective_plan(p_user);
+  insert into public.tts_usage (user_id, month) values (p_user, v_month) on conflict do nothing;
+  select chars into v_used from public.tts_usage where user_id = p_user and month = v_month for update;
+  if v_used + p_chars > coalesce(v_limit, 0) then
+    return false;
+  end if;
+  update public.tts_usage set chars = chars + p_chars where user_id = p_user and month = v_month;
+  return true;
+end;
+$$;
+
+create or replace function public.my_tts_quota()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'limit', (select tts_chars from public.plans where id = public.effective_plan(auth.uid())),
+    'used', coalesce((select chars from public.tts_usage where user_id = auth.uid() and month = date_trunc('month', now())::date), 0)
+  );
+$$;
+
+revoke execute on function public.consume_tts(uuid, integer) from public, anon, authenticated;
+grant execute on function public.consume_tts(uuid, integer) to service_role;
+revoke execute on function public.my_tts_quota() from public, anon;
+grant execute on function public.my_tts_quota() to authenticated;

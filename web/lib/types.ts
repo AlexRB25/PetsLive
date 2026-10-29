@@ -25,6 +25,7 @@ export interface Plan {
   max_platforms: number;
   ai_designs: number;
   summaries: boolean;
+  tts_chars: number;
   description: string;
   sort: number;
 }

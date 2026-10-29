@@ -205,3 +205,55 @@ test('una cuenta suspendida no inicia y se corta su directo', async () => {
   fakeDb.from = origFrom;
   t.engine.clear('fin');
 });
+
+test('voz: grabaciones, ElevenLabs con cupo y caché, y voz del navegador si falla', async () => {
+  const t = new Tenant('u7');
+  await t.load();
+  const v = t.config.voice;
+
+  v.engine = 'navegador';
+  assert.equal(await t.voiceFor({ reaction: 'saludo', rule: 'join', text: 'hola' }), null);
+
+  v.engine = 'grabada';
+  v.clips = { saludo: ['https://x/a.webm', 'https://x/b.webm'], idle: ['https://x/like.webm'] };
+  const a = await t.voiceFor({ reaction: 'saludo', rule: 'join', text: 'hola' });
+  const b = await t.voiceFor({ reaction: 'saludo', rule: 'join', text: 'hola' });
+  assert.notEqual(a.url, b.url); // no repite seguido
+  assert.equal((await t.voiceFor({ reaction: 'saludo', rule: 'idle', text: 'dale like' })).url, 'https://x/like.webm');
+  assert.deepEqual(await t.voiceFor({ reaction: 'baile', rule: 'command', text: 'va' }), { fallback: true });
+
+  // ElevenLabs de la plataforma: simula la API y el cupo.
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { calls.push(String(url)); return new Response(new Uint8Array([1, 2, 3]), { status: 200 }); };
+  process.env.ELEVENLABS_API_KEY = 'k';
+  v.engine = 'elevenlabs';
+  v.elevenVoice = 'voz1';
+  let charged = 0;
+  const realRpc = fakeDb.rpc;
+  fakeDb.rpc = async (name, args) => {
+    if (name === 'consume_tts') { charged += args.p_chars; return { data: charged <= 20, error: null }; }
+    return realRpc(name, args);
+  };
+  const r1 = await t.voiceFor({ reaction: 'saludo', rule: 'join', text: '¡Hola, Ana!' });
+  assert.match(r1.url, /^\/audio\/[0-9a-f]{32}\.mp3$/);
+  const r2 = await t.voiceFor({ reaction: 'saludo', rule: 'join', text: '¡Hola, Ana!' });
+  assert.equal(r2.url, r1.url);
+  assert.equal(calls.length, 1); // la segunda vez salió de la caché
+  assert.equal(charged, 11); // y no se cobró dos veces
+  assert.deepEqual(await t.voiceFor({ reaction: 'saludo', rule: 'join', text: 'una frase bastante más larga' }), { fallback: true }); // sin cupo
+
+  // Su propia cuenta: no usa el cupo de la plataforma.
+  v.engine = 'elevenlabs_propia';
+  v.ownVoice = 'mivoz';
+  assert.deepEqual(await t.voiceFor({ reaction: 'saludo', rule: 'join', text: 'hola' }), { fallback: true }); // sin llave conectada
+  t.elevenKey = 'propia';
+  const before = charged;
+  assert.ok((await t.voiceFor({ reaction: 'saludo', rule: 'join', text: 'otra frase larga larga' })).url);
+  assert.equal(charged, before);
+
+  globalThis.fetch = realFetch;
+  fakeDb.rpc = realRpc;
+  delete process.env.ELEVENLABS_API_KEY;
+  t.engine.clear('fin');
+});

@@ -2,7 +2,7 @@
 // Conexión en vivo del panel con el worker: pide un ticket de un solo uso y abre el SSE.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJSON, WORKER_URL } from "@/lib/supabase-browser";
-import { speak } from "@/lib/speech";
+import { VoicePlayer } from "@/lib/voice-player";
 import type { EngineState, LogEntry, MascotConfig, PlatformStatus, SessionInfo } from "@/lib/types";
 
 export function useWorker(enabled: boolean, configRef: React.RefObject<MascotConfig | null>) {
@@ -41,10 +41,11 @@ export function useWorker(enabled: boolean, configRef: React.RefObject<MascotCon
         on<PlatformStatus>("platforms", setPlatforms);
         on<SessionInfo>("session", setSession);
         on<typeof clients>("clients", setClients);
-        on<{ text: string; resume?: boolean }>("play", (p) => {
-          const c = configRef.current;
-          if (!p.resume && c && c.voice.output === "panel" && !c.behavior.silent) speak(p.text, c.voice);
-        });
+        // La voz sale de esta pestaña si así se eligió en la pestaña Voz.
+        const voice = new VoicePlayer(WORKER_URL);
+        const speaks = () => { const c = configRef.current; return c && c.voice.output === "panel" && !c.behavior.silent ? c : null; };
+        on<{ id: number; text: string; resume?: boolean }>("play", (p) => { const c = speaks(); if (c) voice.play(p, c); });
+        on<{ id: number; url?: string; fallback?: boolean }>("audio", (a) => { const c = speaks(); if (c) voice.audio(a, c); });
       } catch (e) {
         setConnected(false);
         setError(`No se pudo conectar con el servidor de la mascota: ${(e as Error).message}`);

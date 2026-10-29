@@ -2,7 +2,7 @@
 // Overlay de OBS: la mascota recibe del worker qué animación hacer, con qué texto y por cuánto tiempo.
 import { useEffect, useRef, useState } from "react";
 import { mascotHTML, MASCOT_CSS } from "@core/mascot.js";
-import { speak } from "@/lib/speech";
+import { VoicePlayer } from "@/lib/voice-player";
 import { WORKER_URL } from "@/lib/supabase-browser";
 import type { MascotConfig } from "@/lib/types";
 
@@ -23,7 +23,7 @@ const CSS = `
 @keyframes heart { 0% { transform: translate(-50%, 0) scale(.4); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(var(--dx), -220%) scale(1.1); opacity: 0; } }
 ${MASCOT_CSS}`;
 
-interface Play { reaction: string; text: string; duration: number; resume?: boolean }
+interface Play { id: number; reaction: string; text: string; duration: number; resume?: boolean }
 
 export default function Overlay({ overlayKey, preview }: { overlayKey: string; preview: boolean }) {
   const stage = useRef<HTMLDivElement>(null);
@@ -35,6 +35,8 @@ export default function Overlay({ overlayKey, preview }: { overlayKey: string; p
 
   useEffect(() => {
     let config: MascotConfig | null = null;
+    const voice = new VoicePlayer(WORKER_URL);
+    const speaks = () => (!preview && config && config.voice.output === "overlay" && !config.behavior.silent ? config : null);
     let look = "";
     let backTimer: ReturnType<typeof setTimeout> | undefined;
     let bubbleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -116,7 +118,8 @@ export default function Overlay({ overlayKey, preview }: { overlayKey: string; p
       } else {
         b.classList.remove("show");
       }
-      if (!p.resume && !preview && config!.voice.output === "overlay" && !config!.behavior.silent) speak(p.text, config!.voice);
+      const c = speaks();
+      if (c) voice.play(p, c);
       backTimer = setTimeout(idle, p.duration);
     };
 
@@ -131,6 +134,7 @@ export default function Overlay({ overlayKey, preview }: { overlayKey: string; p
     };
     es.addEventListener("config", (e) => { config = JSON.parse((e as MessageEvent).data); layout(); });
     es.addEventListener("play", (e) => config && play(JSON.parse((e as MessageEvent).data)));
+    es.addEventListener("audio", (e) => { const c = speaks(); if (c) voice.audio(JSON.parse((e as MessageEvent).data), c); });
     es.addEventListener("idle", idle);
     return () => { es.close(); clearTimeout(backTimer); clearTimeout(bubbleTimer); };
   }, [overlayKey, preview]);

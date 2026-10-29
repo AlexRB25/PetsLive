@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getJSON, postJSON } from "./api";
 
-interface PlanRow { id: string; name: string; price_mxn: number; minutes: number; max_platforms: number; ai_designs: number; summaries: boolean; description: string; active: boolean; sort: number }
+interface PlanRow { id: string; name: string; price_mxn: number; minutes: number; max_platforms: number; ai_designs: number; summaries: boolean; tts_chars: number; description: string; active: boolean; sort: number }
 interface PackRow { id: string; name: string; price_mxn: number; minutes: number; active: boolean; sort: number }
 
 export default function Plans() {
@@ -37,7 +37,7 @@ export default function Plans() {
       <div className="card scroll-x">
         <h3 style={{ marginTop: 0 }}>Planes</h3>
         <table className="list edit">
-          <thead><tr><th>Nombre</th><th>Precio MXN/mes</th><th>Horas/mes</th><th>Plataformas</th><th>Mascotas IA/mes</th><th>Resumen IA</th><th>Activo</th><th>Descripción</th><th></th></tr></thead>
+          <thead><tr><th>Nombre</th><th>Precio MXN/mes</th><th>Horas/mes</th><th>Plataformas</th><th>Mascotas IA/mes</th><th>Caracteres voz/mes</th><th>Resumen IA</th><th>Activo</th><th>Descripción</th><th></th></tr></thead>
           <tbody>{data.plans.map((p) => <PlanEditor key={p.id} row={p} onSave={(r) => save("plans", r)} />)}</tbody>
         </table>
       </div>
@@ -65,6 +65,7 @@ function PlanEditor({ row, onSave }: { row: PlanRow; onSave: (r: PlanRow) => voi
       <td><input type="number" min={0} step={0.5} value={r.minutes / 60} onChange={(e) => setR({ ...r, minutes: Math.round(Number(e.target.value) * 60) })} /></td>
       <td><input type="number" min={1} max={4} value={r.max_platforms} onChange={(e) => setR({ ...r, max_platforms: Number(e.target.value) })} /></td>
       <td><input type="number" min={0} value={r.ai_designs} onChange={(e) => setR({ ...r, ai_designs: Number(e.target.value) })} /></td>
+      <td><input type="number" min={0} step={1000} value={r.tts_chars} onChange={(e) => setR({ ...r, tts_chars: Number(e.target.value) })} /></td>
       <td><input type="checkbox" checked={r.summaries} onChange={(e) => setR({ ...r, summaries: e.target.checked })} /></td>
       <td><input type="checkbox" disabled={free} checked={r.active} onChange={(e) => setR({ ...r, active: e.target.checked })} /></td>
       <td><input type="text" value={r.description} onChange={(e) => setR({ ...r, description: e.target.value })} /></td>

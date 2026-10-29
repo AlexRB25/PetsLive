@@ -6,6 +6,7 @@ import { speak } from "@/lib/speech";
 import { REACTION_LABELS, type Connection, type MascotConfig } from "@/lib/types";
 import Connections from "./Connections";
 import MascotPicker from "./MascotPicker";
+import VoicePicker from "./VoicePicker";
 import Usage from "./Usage";
 
 type Update = (fn: (c: MascotConfig) => void) => void;
@@ -102,16 +103,20 @@ export default function Settings({ config, update, resetConfig, saved, connectio
 
       {tab === "voz" && (
         <>
+          <VoicePicker config={config} update={update} />
           <div className="form">
-            <Select {...p} path="voice.output" label="Salida de voz" options={[["panel", "Desde esta pestaña del panel"], ["overlay", "Desde el overlay (OBS)"], ["off", "Sin voz"]]} />
-            <Field {...p} path="voice.lang" label="Idioma" maxLength={12} placeholder="es-MX" />
-            <Field {...p} path="voice.rate" label="Velocidad" type="range" min={0.5} max={2} step={0.05} />
-            <Field {...p} path="voice.pitch" label="Tono" type="range" min={0} max={2} step={0.05} />
+            <Select {...p} path="voice.output" label="¿Por dónde sale la voz?" options={[["overlay", "Desde el overlay (OBS) — recomendado"], ["panel", "Desde esta pestaña del panel"], ["off", "Sin voz"]]} />
             <Field {...p} path="voice.volume" label="Volumen" type="range" min={0} max={1} step={0.05} />
             <Field {...p} path="behavior.silent" label="Modo silencioso (sin voz ni globo)" type="checkbox" />
           </div>
-          <p className="muted small">Usa las voces instaladas en tu computadora (gratis). Si en OBS no se oye la voz del overlay, elige “Desde esta pestaña del panel” y captura el audio del escritorio.</p>
-          <button className="btn sm" onClick={() => speak(`¡Hola! Soy ${config.mascot.name}.`, config.voice)}>Escuchar ejemplo</button>
+          <p className="muted small">Desde el overlay: en OBS marca <strong>“Controlar audio a través de OBS”</strong> en la fuente de navegador y la voz saldrá en el directo. Desde el panel: deja esta pestaña abierta y captura el audio del escritorio.</p>
+          <h3>Voz del navegador {config.voice.engine !== "navegador" && <span className="muted" style={{ textTransform: "none", letterSpacing: 0 }}>(se usa de respaldo)</span>}</h3>
+          <div className="form">
+            <Field {...p} path="voice.lang" label="Idioma" maxLength={12} placeholder="es-MX" />
+            <Field {...p} path="voice.rate" label="Velocidad" type="range" min={0.5} max={2} step={0.05} />
+            <Field {...p} path="voice.pitch" label="Tono" type="range" min={0} max={2} step={0.05} />
+          </div>
+          <button className="btn sm" style={{ marginTop: 8 }} onClick={() => speak(`¡Hola! Soy ${config.mascot.name}.`, config.voice)}>Escuchar ejemplo</button>
         </>
       )}
 

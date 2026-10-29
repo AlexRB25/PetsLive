@@ -186,3 +186,17 @@ details > summary { cursor: pointer; }
 .tt-guide { position: absolute; top: 0; left: 0; transform-origin: 0 0; pointer-events: none; }
 .tt-zone { position: absolute; background: rgba(255, 0, 80, .16); border: 4px dashed rgba(255, 0, 80, .55); border-radius: 24px; }
 .tt-zone span { position: absolute; left: 20px; top: 14px; font: 600 34px/1.2 system-ui, sans-serif; color: #ff0050; }
+
+/* voz */
+.engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.engine-card { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px; border: 2px solid var(--line); border-radius: 12px;
+  background: var(--card); color: var(--text); cursor: pointer; font: inherit; }
+.engine-card:hover { border-color: var(--accent); }
+.engine-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.voices { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; max-height: 360px; overflow: auto; }
+.voice { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.voice.active { border-color: var(--accent); }
+.clip-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.clip-group { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.clip { display: inline-flex; align-items: center; gap: 2px; }
+.btn.disabled { opacity: .55; pointer-events: none; }

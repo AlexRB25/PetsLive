@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { REACTIONS } from '../core/config.js';
 import { db, userFromToken } from './src/db.js';
 import { Tenant } from './src/tenant.js';
+import { getAudio } from './src/voice.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const ORIGINS = (process.env.SITE_URL || 'http://localhost:3000').split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
@@ -107,6 +108,16 @@ async function route(req, res, url) {
   const path = url.pathname;
 
   if (path === '/health') return json(res, 200, { ok: true, tenants: tenants.size, live: [...tenants.values()].filter((t) => t.session).length });
+
+  // Audios de ElevenLabs generados para las reacciones (los pide el overlay o el panel).
+  const audio = path.match(/^\/audio\/([0-9a-f]{32})\.mp3$/);
+  if (audio && req.method === 'GET') {
+    const buf = getAudio(audio[1]);
+    cors(req, res, true);
+    if (!buf) return json(res, 404, { error: 'audio no encontrado' });
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': buf.length, 'Cache-Control': 'public, max-age=86400' });
+    return res.end(buf);
+  }
 
   if (path === '/overlay/stream' && req.method === 'GET') {
     cors(req, res, true);

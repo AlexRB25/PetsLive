@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     if (num(p.max_platforms, 1, 4) !== undefined) patch.max_platforms = Math.round(num(p.max_platforms, 1, 4)!);
     if (num(p.ai_designs, 0, 1000) !== undefined) patch.ai_designs = Math.round(num(p.ai_designs, 0, 1000)!);
     if (typeof p.summaries === "boolean") patch.summaries = p.summaries;
+    if (num(p.tts_chars, 0, 10_000_000) !== undefined) patch.tts_chars = Math.round(num(p.tts_chars, 0, 10_000_000)!);
     if (typeof p.description === "string") patch.description = p.description.slice(0, 200);
     if (id === "gratis") { delete patch.price_mxn; delete patch.active; }
   }

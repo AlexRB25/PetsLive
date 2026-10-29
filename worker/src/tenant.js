@@ -5,6 +5,7 @@ import { sanitizeConfig } from '../../core/config.js';
 import { encryptJSON, decryptJSON } from '../../core/tokens.js';
 import { db } from './db.js';
 import { SessionStats } from './stats.js';
+import { cachedAudio, synthesize } from './voice.js';
 import { TwitchConnector } from './connectors/twitch.js';
 import { YouTubeConnector } from './connectors/youtube.js';
 import { FacebookConnector } from './connectors/facebook.js';
@@ -38,6 +39,10 @@ export class Tenant {
     const oldKey = this.overlayKey;
     this.overlayKey = m.data.overlay_key;
     this.config = sanitizeConfig(m.data.config);
+    // Llave de ElevenLabs propia del streamer (opcional), cifrada como los demás tokens.
+    const ev = await db().from('platform_tokens').select('data').eq('user_id', this.userId).eq('platform', 'elevenlabs').maybeSingle();
+    this.elevenKey = null;
+    if (ev.data?.data) try { this.elevenKey = decryptJSON(ev.data.data).apiKey || null; } catch (e) { console.error('llave ElevenLabs ilegible', this.userId, e.message); }
     if (this.engine) this.engine.setConfig(this.config);
     else this.engine = new Engine(this.config, (kind, payload) => this.onEngine(kind, payload));
     // Si se cambió la URL del overlay, la vieja deja de funcionar al instante.
@@ -51,6 +56,51 @@ export class Tenant {
     if (kind === 'play' && this.session) this.session.reactions++;
     if (kind === 'log' || kind === 'state') this.send(kind, payload, ['panel']);
     else this.send(kind, payload);
+    // La voz llega aparte (event audio) para no retrasar la animación.
+    if (kind === 'play' && !payload.resume) {
+      this.voiceFor(payload)
+        .then((v) => v && this.send('audio', { id: payload.id, ...v }))
+        .catch((e) => {
+          console.error('voz', this.userId, e.message);
+          this.send('audio', { id: payload.id, fallback: true });
+        });
+    }
+  }
+
+  /**
+   * Qué audio acompaña a una reacción: { url } (grabado o ElevenLabs), { fallback: true } (usar la voz
+   * del navegador) o null (la voz del navegador ya la maneja el cliente o no hay nada que decir).
+   */
+  async voiceFor(p) {
+    const v = this.config.voice;
+    if (v.output === 'off' || this.config.behavior.silent || v.engine === 'navegador') return null;
+    if (v.engine === 'grabada') {
+      const list = v.clips[p.rule === 'idle' ? 'idle' : p.reaction] || [];
+      if (!list.length) return p.text ? { fallback: true } : null;
+      let i = Math.floor(Math.random() * list.length);
+      if (list.length > 1 && list[i] === this.lastClip) i = (i + 1) % list.length;
+      this.lastClip = list[i];
+      return { url: list[i] };
+    }
+    if (!p.text) return null;
+    const own = v.engine === 'elevenlabs_propia';
+    const apiKey = own ? this.elevenKey : process.env.ELEVENLABS_API_KEY;
+    const voice = own ? v.ownVoice : v.elevenVoice || process.env.ELEVENLABS_DEFAULT_VOICE || '';
+    if (!apiKey || !voice) return { fallback: true };
+    const text = p.text.slice(0, 300);
+    // Con la cuenta de la plataforma se descuenta del cupo del plan (lo que ya está en caché no cuenta).
+    if (!own && !cachedAudio(voice, text)) {
+      const q = await db().rpc('consume_tts', { p_user: this.userId, p_chars: text.length });
+      if (q.error) throw q.error;
+      if (!q.data) {
+        if (Date.now() - (this.ttsWarnedAt || 0) > 3600000) {
+          this.ttsWarnedAt = Date.now();
+          this.engine.pushLog({ kind: 'voz', action: 'descartado', detail: 'Se acabaron los caracteres de voz de este mes; se usa la voz del navegador.' });
+        }
+        return { fallback: true };
+      }
+    }
+    return { url: `/audio/${await synthesize(apiKey, voice, text)}.mp3` };
   }
 
   // ---------- clientes ----------

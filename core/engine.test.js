@@ -181,3 +181,12 @@ test('invita a interactuar solo tras un rato sin actividad y sin repetir seguido
   assert.equal(engine.idleTick(true), true); // prueba manual
   engine.clear('fin');
 });
+
+test('config de voz: motor, audios solo https y voces con id válido', () => {
+  const c = sanitizeConfig({ voice: { engine: 'elevenlabs', elevenVoice: 'abc123', ownVoice: 'x"><', clips: { saludo: ['https://x.supabase.co/a.webm', 'javascript:1'], inventado: ['https://x/a.mp3'] } } });
+  assert.equal(c.voice.engine, 'elevenlabs');
+  assert.equal(c.voice.elevenVoice, 'abc123');
+  assert.equal(c.voice.ownVoice, '');
+  assert.deepEqual(c.voice.clips, { saludo: ['https://x.supabase.co/a.webm'] });
+  assert.equal(sanitizeConfig({ voice: { engine: 'otro' } }).voice.engine, 'navegador');
+});

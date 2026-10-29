@@ -25,6 +25,17 @@ En el panel, pestaña Mascota, el usuario elige una de tres formas:
 2. **Su imagen**: sube un PNG transparente (o GIF/WebP/JPG, máx. 2 MB) al bucket público `mascotas` de Supabase Storage, en su carpeta `<user id>/`. Opcionalmente versiones feliz, triste y sorprendida. La imagen salta, baila y se mueve con las mismas animaciones de cuerpo.
 3. **Con IA**: describe la mascota y Claude Opus 5.5 devuelve un diseño en JSON por partes (cuerpo, orejas, brazos, pies, cola…) con salida estructurada. `core/mascot.js` lo valida (solo formas y colores de la paleta, nada de texto ni enlaces) y lo dibuja con el mismo motor que el catálogo, así que hereda las 8 animaciones, la cara, los colores y los accesorios. Cupo mensual por plan en `plans.ai_designs` (Gratis 1, Creator 5, Pro 20, Business 50, propuesta); los intentos fallidos no cuentan.
 
+## Voz de la mascota
+
+En la pestaña Voz el streamer elige entre cuatro motores (`voice.engine`). Si un audio no llega en 4 s o falla, se usa la voz del navegador:
+
+- **navegador:** voces del sistema, gratis.
+- **grabada:** audios propios por reacción y para las invitaciones (hasta 5 por grupo, se turnan), grabados en el panel o subidos al bucket `mascotas`. No dicen nombres.
+- **elevenlabs:** voces de la cuenta de la plataforma (`ELEVENLABS_API_KEY` en web y worker). Cupo mensual de caracteres por plan (`plans.tts_chars`: Creator 15 000, Pro 40 000, Business 100 000, propuesta) con `consume_tts`. El worker guarda el audio en caché, así que las frases repetidas no se cobran dos veces.
+- **elevenlabs_propia:** el streamer conecta su API key (cifrada en `platform_tokens`) y usa cualquier voz de su cuenta, incluida su voz clonada; no gasta el cupo de la plataforma.
+
+El worker genera el audio (modelo `eleven_flash_v2_5`) y lo sirve en `/audio/<id>.mp3`; el overlay o el panel lo reproducen.
+
 ## Resumen de cada directo
 
 - **Estadísticas por plataforma (todos los planes):** el worker cuenta comentarios, personas que comentaron, entradas, likes, follows, suscripciones, regalos y su valor, y quién comentó o regaló más (`live_sessions.stats`).

@@ -124,3 +124,16 @@ const list = (await db.query(`select admin_users('c@c', 10, 0) as r`)).rows[0].r
 ok(list.total === 1 && list.rows[0].plan === 'pro', 'lista de usuarios con búsqueda');
 const m = (await db.query(`select admin_metrics() as m`)).rows[0].m;
 ok(m.users_total === 3 && m.daily.length === 30 && m.subs_by_plan.length >= 1, 'métricas');
+
+// voces
+ok((await db.query(`select consume_tts($1, 10) as r`, [V])).rows[0].r === false, 'gratis no tiene caracteres de ElevenLabs');
+await db.query(`select admin_gift_subscription($1, 'creator', 1)`, [V]);
+ok((await db.query(`select consume_tts($1, 14000) as r`, [V])).rows[0].r === true, 'creator gasta caracteres');
+ok((await db.query(`select consume_tts($1, 2000) as r`, [V])).rows[0].r === false, 'no se pasa del cupo');
+ok((await db.query(`select consume_tts($1, 1000) as r`, [V])).rows[0].r === true, 'usa lo que queda exacto');
+r = await as(V, `select my_tts_quota() as q`);
+ok(r.rows[0].q.limit === 15000 && r.rows[0].q.used === 15000, 'my_tts_quota');
+ok((await tryAs(V, `select consume_tts($1, -99999)`, [V])) !== 'ok', 'usuario no puede tocar su cupo de voz');
+await db.query(`insert into platform_tokens (user_id, platform, data) values ($1, 'elevenlabs', 'v1.x')`, [V]);
+ok((await db.query(`select count(*)::int as n from platform_tokens where platform = 'elevenlabs'`)).rows[0].n === 1, 'guarda llave de ElevenLabs');
+ok((await db.query(`select 'audio/webm' = any(allowed_mime_types) as a from storage.buckets where id = 'mascotas'`)).rows[0].a === true, 'bucket acepta audios');
