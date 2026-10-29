@@ -386,9 +386,10 @@ export class Engine {
 
   // ---------- estado y registro ----------
 
-  // El historial vive solo en memoria y no guarda el texto del chat.
+  // El historial vive solo en memoria (lo ve solo el streamer en su panel); incluye el comentario leído.
   record(evt, action, detail) {
-    this.pushLog({ kind: evt.type, source: evt.source, user: evt.name, action, detail });
+    const text = evt.type === 'chat' && evt.text ? evt.text.slice(0, 140) : undefined;
+    this.pushLog({ kind: evt.type, source: evt.source, user: evt.name, text, action, detail });
     return { ok: action !== 'descartado', action, detail };
   }
 

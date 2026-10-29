@@ -208,3 +208,5 @@ details > summary { cursor: pointer; }
 .resize-grip { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 4px; background: var(--accent);
   border: 2px solid var(--card); cursor: nwse-resize; opacity: 0; }
 .preview:hover .resize-grip, .mascot-handle.dragging .resize-grip { opacity: 1; }
+
+.log q.said { display: block; margin: 2px 0; color: var(--text); font-style: italic; }

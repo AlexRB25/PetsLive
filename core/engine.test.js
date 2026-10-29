@@ -234,3 +234,13 @@ test('juego: apagado no cuenta y la config se valida', () => {
   assert.deepEqual(g.rules, [{ event: 'follow', match: 'b', points: 1000, per: 1 }]);
   engine.clear('fin');
 });
+
+test('el historial incluye el comentario leído', () => {
+  const log = [];
+  const engine = new Engine(sanitizeConfig({}), (k, p) => k === 'log' && log.push(p));
+  engine.ingest({ type: 'chat', user: 'Ana', text: 'hola Chispa, ¿cómo estás?' });
+  assert.equal(log.at(-1).text, 'hola Chispa, ¿cómo estás?');
+  engine.ingest({ type: 'follow', user: 'Beto' });
+  assert.equal(log.find((e) => e.kind === 'follow').text, undefined);
+  engine.clear('fin');
+});

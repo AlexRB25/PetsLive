@@ -51,6 +51,7 @@ export interface LogEntry {
   kind: string;
   source?: string;
   user?: string;
+  text?: string;
   action: string;
   detail?: string;
 }
