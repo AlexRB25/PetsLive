@@ -107,7 +107,8 @@ function allowSim(userId) {
 async function route(req, res, url) {
   const path = url.pathname;
 
-  if (path === '/health') return json(res, 200, { ok: true, tenants: tenants.size, live: [...tenants.values()].filter((t) => t.session).length });
+  // commit: versión desplegada (Render la pone en RENDER_GIT_COMMIT) para saber si el worker está al día.
+  if (path === '/health') return json(res, 200, { ok: true, commit: (process.env.RENDER_GIT_COMMIT || '').slice(0, 7), tenants: tenants.size, live: [...tenants.values()].filter((t) => t.session).length });
 
   // Audios de ElevenLabs generados para las reacciones (los pide el overlay o el panel).
   const audio = path.match(/^\/audio\/([0-9a-f]{32})\.mp3$/);
