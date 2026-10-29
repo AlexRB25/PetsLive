@@ -25,7 +25,7 @@ ${MASCOT_CSS}`;
 
 interface Play { id: number; reaction: string; text: string; duration: number; resume?: boolean }
 
-export default function Overlay({ overlayKey, preview }: { overlayKey: string; preview: boolean }) {
+export default function Overlay({ overlayKey, preview, background }: { overlayKey: string; preview: boolean; background?: string }) {
   const stage = useRef<HTMLDivElement>(null);
   const mascot = useRef<HTMLDivElement>(null);
   const bubble = useRef<HTMLDivElement>(null);
@@ -146,6 +146,7 @@ export default function Overlay({ overlayKey, preview }: { overlayKey: string; p
   return (
     <>
       <style>{CSS}</style>
+      {background && <style>{`html, body { background: ${background} !important; }`}</style>}
       <div id="stage" ref={stage}>
         <div className="bubble" ref={bubble} />
         <div className="mascot st-reposo" ref={mascot} />
