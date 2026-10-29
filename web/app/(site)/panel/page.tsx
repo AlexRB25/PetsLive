@@ -108,7 +108,7 @@ export default function Panel() {
               voiceFromPanel={config.voice.output === "panel" && !config.behavior.silent}
             />
             <div className="panel-grid">
-              <Preview overlayKey={overlayKey} call={worker.call} />
+              <Preview overlayKey={overlayKey} call={worker.call} mascot={config.mascot} onMove={(patch) => update((c) => Object.assign(c.mascot, patch))} />
               <Simulator mascotName={config.mascot.name} call={worker.call} />
               <QueueLog state={worker.state} log={worker.log} call={worker.call} maxPerMinute={config.behavior.maxPerMinute} />
             </div>

@@ -64,6 +64,13 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       st.style.transform = "";
       const [v, h] = m.position.split("-");
       st.classList.toggle("top", v === "arriba");
+      if (m.position === "libre") {
+        // (x, y) es el punto bajo los pies: el globo crece hacia arriba sin mover a la mascota.
+        st.style.left = `${m.x}%`;
+        st.style.bottom = `${100 - m.y}%`;
+        st.style.transform = "translateX(-50%)";
+        return;
+      }
       if (m.position === "centro") {
         st.style.left = "50%";
         st.style.top = "50%";
@@ -136,7 +143,14 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     es.addEventListener("play", (e) => config && play(JSON.parse((e as MessageEvent).data)));
     es.addEventListener("audio", (e) => { const c = speaks(); if (c) voice.audio(JSON.parse((e as MessageEvent).data), c); });
     es.addEventListener("idle", idle);
-    return () => { es.close(); clearTimeout(backTimer); clearTimeout(bubbleTimer); };
+    // En la vista previa del panel, la mascota se mueve al instante mientras se arrastra.
+    const onMessage = (e: MessageEvent) => {
+      if (!preview || e.origin !== location.origin || e.data?.type !== "petslive-move" || !config) return;
+      config = { ...config, mascot: { ...config.mascot, ...e.data.mascot } };
+      layout();
+    };
+    window.addEventListener("message", onMessage);
+    return () => { es.close(); clearTimeout(backTimer); clearTimeout(bubbleTimer); window.removeEventListener("message", onMessage); };
   }, [overlayKey, preview]);
 
   const notice = (text: string) => (

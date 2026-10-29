@@ -95,7 +95,7 @@ export default function Settings({ config, update, resetConfig, saved, connectio
           <Field {...p} path="mascot.eyes" label="Color de ojos" type="color" />
           <Select {...p} path="mascot.accessory" label="Accesorio" options={[["ninguno", "Ninguno"], ["gorra", "Gorra"], ["moño", "Moño"], ["corona", "Corona"]]} />
           <Field {...p} path="mascot.size" label="Tamaño (px)" type="range" min={80} max={800} step={10} />
-          <Select {...p} path="mascot.position" label="Posición" options={[["abajo-derecha", "Abajo a la derecha"], ["abajo-izquierda", "Abajo a la izquierda"], ["arriba-derecha", "Arriba a la derecha"], ["arriba-izquierda", "Arriba a la izquierda"], ["centro", "Centro"]]} />
+          <Select {...p} path="mascot.position" label="Posición" options={[["abajo-derecha", "Abajo a la derecha"], ["abajo-izquierda", "Abajo a la izquierda"], ["arriba-derecha", "Arriba a la derecha"], ["arriba-izquierda", "Arriba a la izquierda"], ["centro", "Centro"], ["libre", "Libre (arrástrala en la vista previa)"]]} />
           <Field {...p} path="mascot.offsetX" label="Margen horizontal (px)" type="number" min={0} max={1000} />
           <Field {...p} path="mascot.offsetY" label="Margen vertical (px)" type="number" min={0} max={1000} />
         </div>

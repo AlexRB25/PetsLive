@@ -200,3 +200,11 @@ details > summary { cursor: pointer; }
 .clip-group { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
 .clip { display: inline-flex; align-items: center; gap: 2px; }
 .btn.disabled { opacity: .55; pointer-events: none; }
+
+/* mascota arrastrable en la vista previa */
+.mascot-handle { position: absolute; border: 2px dashed transparent; border-radius: 10px; cursor: grab; touch-action: none; z-index: 2; }
+.preview:hover .mascot-handle, .mascot-handle.dragging { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.mascot-handle.dragging { cursor: grabbing; }
+.resize-grip { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 4px; background: var(--accent);
+  border: 2px solid var(--card); cursor: nwse-resize; opacity: 0; }
+.preview:hover .resize-grip, .mascot-handle.dragging .resize-grip { opacity: 1; }

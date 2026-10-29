@@ -21,9 +21,12 @@ export const DEFAULT_CONFIG = {
     eyes: '#2b2140',
     accessory: 'ninguno', // ninguno | gorra | moño | corona
     size: 260,
-    position: 'abajo-derecha', // abajo-derecha | abajo-izquierda | arriba-derecha | arriba-izquierda | centro
+    position: 'abajo-derecha', // abajo-derecha | abajo-izquierda | arriba-derecha | arriba-izquierda | centro | libre
     offsetX: 40,
     offsetY: 40,
+    // posición libre (arrastrada en la vista previa): punto bajo los pies de la mascota, en % del ancho y alto
+    x: 85,
+    y: 92,
   },
   voice: {
     output: 'panel', // overlay | panel | off
@@ -151,7 +154,9 @@ export function sanitizeConfig(input = {}) {
       eyes: color(m.eyes, d.mascot.eyes),
       accessory: oneOf(m.accessory, ['ninguno', 'gorra', 'moño', 'corona'], d.mascot.accessory),
       size: clampNum(m.size, 80, 800, d.mascot.size),
-      position: oneOf(m.position, ['abajo-derecha', 'abajo-izquierda', 'arriba-derecha', 'arriba-izquierda', 'centro'], d.mascot.position),
+      position: oneOf(m.position, ['abajo-derecha', 'abajo-izquierda', 'arriba-derecha', 'arriba-izquierda', 'centro', 'libre'], d.mascot.position),
+      x: clampNum(m.x, 0, 100, d.mascot.x),
+      y: clampNum(m.y, 5, 100, d.mascot.y),
       offsetX: clampNum(m.offsetX, 0, 1000, d.mascot.offsetX),
       offsetY: clampNum(m.offsetY, 0, 1000, d.mascot.offsetY),
     },
