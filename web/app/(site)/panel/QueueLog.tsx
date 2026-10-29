@@ -4,7 +4,7 @@ import { REACTION_LABELS, type EngineState, type LogEntry } from "@/lib/types";
 
 const KIND: Record<string, string> = {
   join: "entrada", chat: "chat", follow: "follow", like: "likes", gift: "regalo", sub: "suscripción",
-  purchase: "compra", win: "victoria", lose: "derrota", scare: "susto",
+  purchase: "compra", win: "victoria", lose: "derrota", scare: "susto", idle: "invitación",
 };
 const SOURCE: Record<string, string> = { twitch: "Twitch", youtube: "YouTube", facebook: "Facebook", tiktok: "TikTok", simulador: "simulador" };
 

@@ -43,6 +43,9 @@ export const DEFAULT_CONFIG = {
     likeWindowMs: 20000,
     joinBatchMs: 4000,
     giftMergeMs: 5000,
+    // Invitaciones cuando nadie interactúa: tras idleAfterMs sin eventos, una cada idleEveryMs.
+    idleAfterMs: 45000,
+    idleEveryMs: 90000,
     bigGiftAmount: 100,
     commandCooldownMs: 15000,
     schedule: { enabled: false, start: '18:00', end: '23:59' },
@@ -73,6 +76,19 @@ export const DEFAULT_CONFIG = {
     lose: { enabled: true, reaction: 'tristeza', priority: 3, phrases: ['Ay, no… la próxima sí.', 'Perdimos, pero con estilo.'] },
     scare: { enabled: true, reaction: 'sorpresa', priority: 3, phrases: ['¡AAAH! ¡Qué susto!', '¡No hagas eso!'] },
     command: { enabled: true, priority: 2, phrases: ['¡Va, {user}!', '¡A la orden, {user}!'] },
+    idle: {
+      enabled: true,
+      reaction: 'saludo',
+      priority: 1,
+      phrases: [
+        '¡Si te está gustando, deja tu like!',
+        '¿De dónde nos ven? ¡Cuéntenme en los comentarios!',
+        '¡Sígueme para no perderte el próximo directo!',
+        '¡Toquen la pantalla para mandar likes!',
+        '¡Compartan el directo con un amigo!',
+        'Escriban {mascota} en el chat y los saludo.',
+      ],
+    },
   },
   commands: { '!baila': 'baile', '!salta': 'salto', '!hola': 'saludo', '!fiesta': 'celebracion' },
   // Guardar los comentarios del directo para el resumen (se borran al generarlo o a los 30 días).
@@ -149,6 +165,8 @@ export function sanitizeConfig(input = {}) {
       likeWindowMs: clampNum(b.likeWindowMs, 1000, 600000, d.behavior.likeWindowMs),
       joinBatchMs: clampNum(b.joinBatchMs, 0, 30000, d.behavior.joinBatchMs),
       giftMergeMs: clampNum(b.giftMergeMs, 0, 60000, d.behavior.giftMergeMs),
+      idleAfterMs: clampNum(b.idleAfterMs, 10000, 1800000, d.behavior.idleAfterMs),
+      idleEveryMs: clampNum(b.idleEveryMs, 15000, 1800000, d.behavior.idleEveryMs),
       bigGiftAmount: clampNum(b.bigGiftAmount, 1, 1000000, d.behavior.bigGiftAmount),
       commandCooldownMs: clampNum(b.commandCooldownMs, 0, 600000, d.behavior.commandCooldownMs),
       schedule: {

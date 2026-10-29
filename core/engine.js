@@ -22,6 +22,8 @@ export class Engine {
     this.joinBatch = { names: [], timer: null };
     this.log = [];
     this.seq = 0;
+    this.lastActivity = now(); // último evento del público (para las invitaciones)
+    this.lastIdleAt = 0;
   }
 
   setConfig(config) {
@@ -35,6 +37,7 @@ export class Engine {
   ingest(raw, source = 'simulador') {
     const evt = this.normalize(raw, source);
     if (!evt) return { ok: false, reason: 'evento inválido' };
+    this.lastActivity = evt.ts;
     const b = this.config.behavior;
     const t = this.now();
 
@@ -216,6 +219,21 @@ export class Engine {
     };
     const res = this.enqueue(item);
     return this.record(evt, res.ok ? 'en cola' : 'descartado', res.ok ? `${item.reaction} (prioridad ${item.priority})` : res.reason);
+  }
+
+  // Invitación a interactuar (like, comentar, seguir…) cuando nadie participa desde hace rato.
+  // La llama el worker cada pocos segundos durante un directo; force la lanza ya (botón de prueba).
+  idleTick(force = false) {
+    const b = this.config.behavior;
+    const rule = this.config.rules.idle;
+    if (!rule?.enabled || b.paused || !this.inSchedule()) return false;
+    const t = this.now();
+    if (!force) {
+      if (this.current || this.queue.length) return false;
+      if (t - this.lastActivity < b.idleAfterMs || t - this.lastIdleAt < b.idleEveryMs) return false;
+    }
+    this.lastIdleAt = t;
+    return this.fromRule({ type: 'idle', name: '', source: 'mascota', ts: t }, 'idle', {}).ok;
   }
 
   // Reacciones de prueba desde el panel: entran con prioridad máxima e ignoran límites.

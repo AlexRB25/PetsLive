@@ -119,7 +119,7 @@ export default function LiveCard({ worker, status, connections, overlayKey, onNe
           {busy ? "Un momento…" : session.active ? "Detener directo" : "Iniciar directo"}
         </button>
         <div className="small">
-          <div className="muted tiny">URL para OBS (fuente de navegador 1920×1080):</div>
+          <div className="muted tiny">URL para OBS (fuente de navegador 1920×1080, o 1080×1920 si transmites vertical a TikTok):</div>
           <div className="row" style={{ marginTop: 4 }}>
             <code className="grow" style={{ flex: 1 }}>{obsUrl.replace(overlayKey, overlayKey.slice(0, 6) + "…")}</code>
             <button className="btn sm" onClick={() => { navigator.clipboard?.writeText(obsUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? "Copiada" : "Copiar"}</button>

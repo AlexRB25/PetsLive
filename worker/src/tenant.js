@@ -182,6 +182,9 @@ export class Tenant {
       conn.start();
     }
     this.meterTimer = setInterval(() => this.meter().catch((e) => console.error('medidor', uid, e.message)), 60000);
+    // Invitaciones a interactuar cuando el chat está quieto.
+    this.engine.lastActivity = now;
+    this.idleTimer = setInterval(() => this.engine.idleTick(), 5000);
     this.engine.pushLog({ kind: 'sesión', action: 'iniciada', detail: this.session.platforms.join(', ') });
     this.send('session', this.sessionInfo(), ['panel']);
     return { ok: true };
@@ -235,6 +238,7 @@ export class Tenant {
     if (!s) return;
     this.session = null;
     clearInterval(this.meterTimer);
+    clearInterval(this.idleTimer);
     for (const c of Object.values(this.connectors)) c.stop();
     this.connectors = {};
     this.lastEnd = { reason, at: Date.now(), minutes: s.minutes };

@@ -36,6 +36,7 @@ export default function Simulator({ mascotName, call }: { mascotName: string; ca
         <button className="btn sm" onClick={() => send({ type: "chat", user, text: `hola ${mascotName}!` })}>Mención</button>
         <button className="btn sm" onClick={() => send({ type: "sub", user })}>Suscripción</button>
         <button className="btn sm" onClick={() => send({ type: "purchase", user, gift: "una taza", id: id() })}>Compra</button>
+        <button className="btn sm" title="Lo que dice cuando nadie interactúa" onClick={() => call("/panel/control", { action: "idle" }).catch((e) => setErr((e as Error).message))}>Invitación</button>
       </div>
       <div className="row" style={{ marginTop: 8 }}>
         <input className="grow" type="text" maxLength={200} placeholder="Comentario (prueba !baila)" value={chat} onChange={(e) => setChat(e.target.value)} />

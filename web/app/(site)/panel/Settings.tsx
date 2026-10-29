@@ -14,6 +14,7 @@ const RULE_LABELS: Record<string, string> = {
   join: "Entrada de espectador", joinGroup: "Varias entradas juntas", chat: "Mención en el chat", follow: "Follow",
   like: "Likes (al llegar al umbral)", gift: "Regalo", giftBig: "Regalo grande", sub: "Suscripción / membresía",
   purchase: "Compra verificada", win: "Victoria (juego)", lose: "Derrota (juego)", scare: "Susto (juego)", command: "Comando del chat",
+  idle: "Invitación cuando nadie interactúa",
 };
 
 const TABS = [
@@ -132,6 +133,8 @@ export default function Settings({ config, update, resetConfig, saved, connectio
             <Field {...p} path="behavior.giftMergeMs" label="Sumar combos de regalos (ms)" type="number" min={0} max={60000} step={500} />
             <Field {...p} path="behavior.bigGiftAmount" label="Regalo grande desde (valor)" type="number" min={1} />
             <Field {...p} path="behavior.commandCooldownMs" label="Enfriamiento de comandos (ms)" type="number" min={0} step={1000} />
+            <Field {...p} path="behavior.idleAfterMs" label="Invitar a interactuar tras (ms sin actividad)" type="number" min={10000} step={5000} />
+            <Field {...p} path="behavior.idleEveryMs" label="Repetir la invitación cada (ms)" type="number" min={15000} step={5000} />
             <Field {...p} path="behavior.schedule.enabled" label="Solo reaccionar en horario" type="checkbox" />
             <Field {...p} path="behavior.schedule.start" label="Desde" type="time" />
             <Field {...p} path="behavior.schedule.end" label="Hasta" type="time" />

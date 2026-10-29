@@ -158,3 +158,26 @@ test('config: imágenes solo https y vuelve al catálogo si falta lo necesario',
   assert.equal(sanitizeConfig({ mascot: { kind: 'ia', design: null } }).mascot.kind, 'catalogo');
   assert.equal(sanitizeConfig({ mascot: { species: 'dragon' } }).mascot.species, 'chispa');
 });
+
+test('invita a interactuar solo tras un rato sin actividad y sin repetir seguido', () => {
+  let t = 1_000_000;
+  const cfg = sanitizeConfig({ ...DEFAULT_CONFIG, behavior: { ...DEFAULT_CONFIG.behavior, idleAfterMs: 30000, idleEveryMs: 60000, minGapMs: 0 } });
+  const played = [];
+  const engine = new Engine(cfg, (k, p) => k === 'play' && played.push(p), () => t);
+  t += 10000;
+  assert.equal(engine.idleTick(), false); // apenas 10 s
+  t += 25000;
+  assert.equal(engine.idleTick(), true);
+  assert.equal(played.length, 1);
+  engine.clear('x');
+  t += 30000;
+  assert.equal(engine.idleTick(), false); // aún no pasan 60 s desde la última invitación
+  t += 31000;
+  engine.ingest({ type: 'chat', user: 'a', text: 'hola' });
+  assert.equal(engine.idleTick(), false); // alguien acaba de comentar
+  t += 31000;
+  assert.equal(engine.idleTick(), true);
+  assert.notEqual(played[0].text, played[1].text);
+  assert.equal(engine.idleTick(true), true); // prueba manual
+  engine.clear('fin');
+});

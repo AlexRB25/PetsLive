@@ -180,3 +180,9 @@ tr.clickable:hover td { background: var(--soft); }
 table.list.edit input[type=text] { min-width: 120px; }
 table.list.edit input[type=number] { width: 90px; }
 details > summary { cursor: pointer; }
+
+/* vista previa vertical (TikTok) */
+.preview.vertical { width: min(100%, 300px); margin: 0 auto; }
+.tt-guide { position: absolute; top: 0; left: 0; transform-origin: 0 0; pointer-events: none; }
+.tt-zone { position: absolute; background: rgba(255, 0, 80, .16); border: 4px dashed rgba(255, 0, 80, .55); border-radius: 24px; }
+.tt-zone span { position: absolute; left: 20px; top: 14px; font: 600 34px/1.2 system-ui, sans-serif; color: #ff0050; }
