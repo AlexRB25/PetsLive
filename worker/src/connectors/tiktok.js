@@ -5,7 +5,10 @@
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
 import { Connector } from './base.js';
 
-const nick = (d) => d?.user?.nickname || d?.user?.uniqueId || '';
+// Los nombres de campos cambian entre versiones del protocolo de TikTok: se aceptan ambos.
+const nick = (d) => d?.user?.nickname || d?.user?.uniqueId || d?.user?.displayId || '';
+export const chatText = (d) => String(d?.comment ?? d?.content ?? '');
+export const likeCount = (d) => Number(d?.likeCount ?? d?.count) || 1;
 const msgId = (d) => (d?.common?.msgId ? `tt-${d.common.msgId}` : undefined);
 
 export function giftEvent(d) {
@@ -47,8 +50,8 @@ export class TikTokConnector extends Connector {
     const mine = () => this.conn === conn && !this.stopped;
 
     conn.on(WebcastEvent.MEMBER, (d) => mine() && this.emit({ type: 'join', id: msgId(d), user: nick(d) }));
-    conn.on(WebcastEvent.CHAT, (d) => mine() && this.emit({ type: 'chat', id: msgId(d), user: nick(d), text: d.comment || '' }));
-    conn.on(WebcastEvent.LIKE, (d) => mine() && this.emit({ type: 'like', user: nick(d), amount: Number(d.likeCount) || 1 }));
+    conn.on(WebcastEvent.CHAT, (d) => mine() && this.emit({ type: 'chat', id: msgId(d), user: nick(d), text: chatText(d) }));
+    conn.on(WebcastEvent.LIKE, (d) => mine() && this.emit({ type: 'like', user: nick(d), amount: likeCount(d) }));
     conn.on(WebcastEvent.FOLLOW, (d) => mine() && this.emit({ type: 'follow', id: msgId(d), user: nick(d) }));
     conn.on(WebcastEvent.GIFT, (d) => {
       const evt = mine() && giftEvent(d);

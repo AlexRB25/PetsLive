@@ -51,3 +51,12 @@ test('tokens cifrados ida y vuelta', () => {
   parts[3] = Buffer.from('otra cosa').toString('base64');
   assert.throws(() => decryptJSON(parts.join('.')));
 });
+
+test('TikTok: texto y likes con los nombres de campos del protocolo actual', async () => {
+  const { chatText, likeCount } = await import('../src/connectors/tiktok.js');
+  assert.equal(chatText({ content: 'hola Bolt' }), 'hola Bolt'); // protocolo v3
+  assert.equal(chatText({ comment: 'hola Bolt' }), 'hola Bolt'); // versiones anteriores
+  assert.equal(likeCount({ count: 15 }), 15);
+  assert.equal(likeCount({ likeCount: 7 }), 7);
+  assert.equal(likeCount({}), 1);
+});
