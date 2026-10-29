@@ -1,6 +1,7 @@
 // Motor de eventos: normaliza, deduplica, aplica reglas y reparte reacciones de una en una.
 // Flujo: fuente → ingest() → validación → reglas → cola con prioridad → emit('play') → overlay.
 import { EVENT_TYPES } from './config.js';
+import { Game } from './game.js';
 
 const strip = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -23,10 +24,17 @@ export class Engine {
     this.log = [];
     this.seq = 0;
     this.lastActivity = now(); // último evento del público (para las invitaciones)
+    this.game = new Game(config.game, {
+      emit: (state) => this.emit('game', state),
+      onWin: () => this.gameEvent('gameWin', {}),
+      onDrop: (evt) => this.gameEvent('gameDrop', { user: evt.name, gift: evt.gift || 'eso' }),
+      now,
+    });
     this.lastIdleAt = 0;
   }
 
   setConfig(config) {
+    this.game?.setConfig(config.game);
     this.config = config;
     if (config.behavior.paused) this.clear('pausa');
     this.pump();
@@ -51,6 +59,7 @@ export class Engine {
     }
     if (b.paused) return this.record(evt, 'descartado', 'mascota en pausa');
     if (!this.inSchedule()) return this.record(evt, 'descartado', 'fuera de horario');
+    this.game.apply(evt);
 
     switch (evt.type) {
       case 'join': return this.onJoin(evt, t);
@@ -219,6 +228,11 @@ export class Engine {
     };
     const res = this.enqueue(item);
     return this.record(evt, res.ok ? 'en cola' : 'descartado', res.ok ? `${item.reaction} (prioridad ${item.priority})` : res.reason);
+  }
+
+  // Festejo o queja de la mascota por el juego.
+  gameEvent(rule, vars) {
+    return this.fromRule({ type: 'juego', name: '', source: 'juego', ts: this.now() }, rule, vars);
   }
 
   // Invitación a interactuar (like, comentar, seguir…) cuando nadie participa desde hace rato.

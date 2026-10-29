@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEFAULT_CONFIG } from "@core/config.js";
 import { speak } from "@/lib/speech";
 import { REACTION_LABELS, type Connection, type MascotConfig } from "@/lib/types";
 import Connections from "./Connections";
 import MascotPicker from "./MascotPicker";
+import GameSettings from "./GameSettings";
+import type { GameState } from "@/lib/game-widget";
 import VoicePicker from "./VoicePicker";
 import Usage from "./Usage";
 
@@ -20,7 +22,7 @@ const RULE_LABELS: Record<string, string> = {
 
 const TABS = [
   ["mascota", "Mascota"], ["voz", "Voz"], ["limites", "Límites"], ["reglas", "Reglas y frases"],
-  ["comandos", "Comandos"], ["conexiones", "Conexiones"], ["uso", "Directos y resúmenes"],
+  ["comandos", "Comandos"], ["juegos", "Juegos"], ["conexiones", "Conexiones"], ["uso", "Directos y resúmenes"],
 ] as const;
 
 // Lee y escribe un valor por ruta ("behavior.maxPerMinute").
@@ -71,14 +73,30 @@ interface Props {
   reloadConnections: () => void;
   maxPlatforms: number;
   sessionActive: boolean;
+  game: GameState | null;
+  call: (path: string, body: unknown) => Promise<unknown>;
 }
 
-export default function Settings({ config, update, resetConfig, saved, connections, reloadConnections, maxPlatforms, sessionActive }: Props) {
+export default function Settings({ config, update, resetConfig, saved, connections, reloadConnections, maxPlatforms, sessionActive, game, call }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("mascota");
+  const box = useRef<HTMLElement>(null);
+
+  // Otros lugares del panel pueden abrir una pestaña (por ejemplo, "ir a Conexiones").
+  useEffect(() => {
+    const open = (e: Event) => {
+      const id = (e as CustomEvent).detail;
+      if (TABS.some(([t]) => t === id)) {
+        setTab(id);
+        box.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+    window.addEventListener("petslive-tab", open);
+    return () => window.removeEventListener("petslive-tab", open);
+  }, []);
   const p = { config, update };
 
   return (
-    <section className="card" style={{ marginTop: 14 }}>
+    <section ref={box} className="card" style={{ marginTop: 14 }}>
       <div className="tabs" role="tablist">
         {TABS.map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
@@ -220,6 +238,7 @@ export default function Settings({ config, update, resetConfig, saved, connectio
       )}
 
       {tab === "conexiones" && <Connections connections={connections} reload={reloadConnections} maxPlatforms={maxPlatforms} sessionActive={sessionActive} />}
+      {tab === "juegos" && <GameSettings config={config} update={update} state={game} call={call} />}
       {tab === "uso" && <Usage />}
     </section>
   );

@@ -36,6 +36,10 @@ En la pestaña Voz el streamer elige entre cuatro motores (`voice.engine`). Si u
 
 El worker genera el audio (modelo `eleven_flash_v2_5`) y lo sirve en `/audio/<id>.mp3`; el overlay o el panel lo reproducen.
 
+## Juego "¡Llévame a la cima!"
+
+Pestaña Juegos del panel (`config.game`, lógica en `core/game.js`, dibujo en `web/lib/game-widget.ts`). Una montaña con una mini versión de la mascota que sube o baja según reglas configurables: follows, likes (cada N), suscripciones, regalos por nombre (por ejemplo "rosa, rose" baja) o cualquier regalo, palabras del chat (`!sube` / `!baja`, una vez cada 3 s por persona) y entradas. Al llegar a la meta la mascota festeja (regla `gameWin`) y el juego se reinicia; una caída de 10 puntos o más dispara `gameDrop`.
+
 ## Resumen de cada directo
 
 - **Estadísticas por plataforma (todos los planes):** el worker cuenta comentarios, personas que comentaron, entradas, likes, follows, suscripciones, regalos y su valor, y quién comentó o regaló más (`live_sessions.stats`).

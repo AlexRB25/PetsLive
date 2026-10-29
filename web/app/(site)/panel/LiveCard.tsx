@@ -55,7 +55,11 @@ export default function LiveCard({ worker, status, connections, overlayKey, onNe
     setBusy(true);
     try {
       const r = await worker.call("/panel/control", { action: session.active ? "stop" : "start" });
-      if (r && (r as { ok?: boolean }).ok === false) setErr(String((r as { error?: string }).error));
+      if (r && (r as { ok?: boolean }).ok === false) {
+        const msg = String((r as { error?: string }).error);
+        setErr(msg);
+        if (/Conexiones/.test(msg)) window.dispatchEvent(new CustomEvent("petslive-tab", { detail: "conexiones" }));
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -106,7 +110,7 @@ export default function LiveCard({ worker, status, connections, overlayKey, onNe
             })}
           </div>
         ) : (
-          <div className="muted small">Activa al menos una plataforma en la pestaña <strong>Conexiones</strong> (abajo).</div>
+          <div className="muted small">Activa al menos una plataforma: <button className="link" onClick={() => window.dispatchEvent(new CustomEvent("petslive-tab", { detail: "conexiones" }))}>ir a Conexiones</button>.</div>
         )}
 
         {err && <div className="err small">{err}</div>}

@@ -118,6 +118,7 @@ export class Tenant {
     this.clients.add(client);
     this.lastActive = Date.now();
     this.sendTo(client, 'config', this.config);
+    this.sendTo(client, 'game', this.engine.game.state());
     if (client.role === 'panel') {
       this.sendTo(client, 'state', this.engine.state());
       this.sendTo(client, 'history', this.engine.log);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJSON, WORKER_URL } from "@/lib/supabase-browser";
 import { VoicePlayer } from "@/lib/voice-player";
+import type { GameState } from "@/lib/game-widget";
 import type { EngineState, LogEntry, MascotConfig, PlatformStatus, SessionInfo } from "@/lib/types";
 
 export function useWorker(enabled: boolean, configRef: React.RefObject<MascotConfig | null>) {
@@ -12,6 +13,7 @@ export function useWorker(enabled: boolean, configRef: React.RefObject<MascotCon
   const [platforms, setPlatforms] = useState<PlatformStatus>({});
   const [session, setSession] = useState<SessionInfo>({ active: false });
   const [clients, setClients] = useState({ overlay: 0, preview: 0, panel: 0 });
+  const [game, setGame] = useState<GameState | null>(null);
   const [error, setError] = useState("");
   const stop = useRef(false);
 
@@ -41,6 +43,7 @@ export function useWorker(enabled: boolean, configRef: React.RefObject<MascotCon
         on<PlatformStatus>("platforms", setPlatforms);
         on<SessionInfo>("session", setSession);
         on<typeof clients>("clients", setClients);
+        on<GameState>("game", setGame);
         // La voz sale de esta pestaña si así se eligió en la pestaña Voz.
         const voice = new VoicePlayer(WORKER_URL);
         const speaks = () => { const c = configRef.current; return c && c.voice.output === "panel" && !c.behavior.silent ? c : null; };
@@ -58,5 +61,5 @@ export function useWorker(enabled: boolean, configRef: React.RefObject<MascotCon
 
   const call = useCallback((path: string, body: unknown) => postJSON(`${WORKER_URL}${path}`, body), []);
 
-  return { connected, state, log, platforms, session, clients, error, call };
+  return { connected, state, log, platforms, session, clients, game, error, call };
 }

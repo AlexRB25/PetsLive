@@ -1,5 +1,6 @@
 // Configuración de la mascota: valores por defecto y validación. Se usa en la web y en el worker.
 import { SPECIES, validateDesign } from './mascot.js';
+import { DEFAULT_GAME, sanitizeGame } from './game.js';
 
 export const REACTIONS = ['reposo', 'saludo', 'salto', 'baile', 'sorpresa', 'celebracion', 'tristeza', 'agradecimiento'];
 
@@ -89,6 +90,8 @@ export const DEFAULT_CONFIG = {
     lose: { enabled: true, reaction: 'tristeza', priority: 3, phrases: ['Ay, no… la próxima sí.', 'Perdimos, pero con estilo.'] },
     scare: { enabled: true, reaction: 'sorpresa', priority: 3, phrases: ['¡AAAH! ¡Qué susto!', '¡No hagas eso!'] },
     command: { enabled: true, priority: 2, phrases: ['¡Va, {user}!', '¡A la orden, {user}!'] },
+    gameWin: { enabled: true, reaction: 'celebracion', priority: 5, phrases: ['¡Llegamos a la cima! ¡Gracias a todos!', '¡LO LOGRAMOS! ¡Cima conquistada!'] },
+    gameDrop: { enabled: true, reaction: 'sorpresa', priority: 2, phrases: ['¡Oye, {user}! ¡Me tiraste!', '¡Nooo! {user} me bajó con {gift}.'] },
     idle: {
       enabled: true,
       reaction: 'saludo',
@@ -106,6 +109,8 @@ export const DEFAULT_CONFIG = {
   commands: { '!baila': 'baile', '!salta': 'salto', '!hola': 'saludo', '!fiesta': 'celebracion' },
   // Guardar los comentarios del directo para el resumen (se borran al generarlo o a los 30 días).
   summary: { saveComments: true },
+  // Juego "¡Llévame a la cima!" (ver game.js).
+  game: DEFAULT_GAME,
 };
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -203,6 +208,7 @@ export function sanitizeConfig(input = {}) {
     durations: {},
     rules: {},
     commands: {},
+    game: sanitizeGame(i.game),
     summary: { saveComments: typeof i.summary?.saveComments === 'boolean' ? i.summary.saveComments : d.summary.saveComments },
   };
   for (const r of REACTIONS) out.durations[r] = clampNum(i.durations?.[r], 0, 15000, d.durations[r]);

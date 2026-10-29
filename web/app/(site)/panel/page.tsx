@@ -121,6 +121,8 @@ export default function Panel() {
               reloadConnections={loadConnections}
               maxPlatforms={status?.plan.max_platforms ?? 1}
               sessionActive={worker.session.active}
+              game={worker.game}
+              call={worker.call}
             />
           </>
         )}

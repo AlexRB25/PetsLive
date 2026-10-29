@@ -190,3 +190,47 @@ test('config de voz: motor, audios solo https y voces con id válido', () => {
   assert.deepEqual(c.voice.clips, { saludo: ['https://x.supabase.co/a.webm'] });
   assert.equal(sanitizeConfig({ voice: { engine: 'otro' } }).voice.engine, 'navegador');
 });
+
+test('juego: follows y likes suben, las rosas tiran, y al llegar a la cima festeja y reinicia', async () => {
+  const cfg = sanitizeConfig({ ...DEFAULT_CONFIG, behavior: { ...DEFAULT_CONFIG.behavior, joinBatchMs: 0, minGapMs: 0, userCooldownMs: 0, dedupWindowMs: 0 }, game: { enabled: true, goal: 30, resetSec: 2 } });
+  const states = [];
+  const played = [];
+  const engine = new Engine(cfg, (k, p) => { if (k === 'game') states.push(p); if (k === 'play') played.push(p); });
+  const last = () => states.at(-1);
+
+  engine.ingest({ type: 'follow', user: 'Ana' });
+  assert.equal(last().progress, 10);
+  engine.ingest({ type: 'like', user: 'x', amount: 15 });
+  assert.equal(last().progress, 10); // aún no llega a 20 likes
+  engine.ingest({ type: 'like', user: 'y', amount: 10 });
+  assert.equal(last().progress, 11);
+  engine.ingest({ type: 'gift', user: 'Troll', gift: 'Rose', amount: 2, id: 'g1' });
+  assert.equal(last().progress, 0); // 2 rosas = -20, no baja de 0
+  assert.ok(played.some((p) => p.rule === 'gameDrop') || engine.queue.some((q) => q.rule === 'gameDrop'));
+  engine.ingest({ type: 'gift', user: 'Luis', gift: 'León', amount: 1, id: 'g2' });
+  assert.equal(last().progress, 5); // regalo genérico +5
+  engine.ingest({ type: 'chat', user: 'Bea', text: '!sube' });
+  engine.ingest({ type: 'chat', user: 'Bea', text: '!sube ya' }); // misma persona en menos de 3 s
+  assert.equal(last().progress, 7);
+  engine.ingest({ type: 'sub', user: 'Caro' });
+  engine.ingest({ type: 'follow', user: 'Dani' });
+  assert.equal(last().progress, 30);
+  assert.equal(last().won, true);
+  assert.equal(last().wins, 1);
+  assert.ok(played.some((p) => p.rule === 'gameWin') || engine.queue.some((q) => q.rule === 'gameWin'));
+  engine.ingest({ type: 'follow', user: 'Eli' });
+  assert.equal(last().progress, 30); // ganado: ignora hasta reiniciar
+  engine.game.reset();
+  assert.equal(last().progress, 0);
+  engine.game.stop();
+  engine.clear('fin');
+});
+
+test('juego: apagado no cuenta y la config se valida', () => {
+  const engine = new Engine(sanitizeConfig({}), () => {});
+  assert.equal(engine.game.apply({ type: 'follow', name: 'a' }), 0);
+  const g = sanitizeConfig({ game: { enabled: true, goal: 5, rules: [{ event: 'hackear', points: 9 }, { event: 'follow', points: 99999, per: 0, match: '<b>' }] } }).game;
+  assert.equal(g.goal, 10);
+  assert.deepEqual(g.rules, [{ event: 'follow', match: 'b', points: 1000, per: 1 }]);
+  engine.clear('fin');
+});

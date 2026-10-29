@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mascotHTML, MASCOT_CSS } from "@core/mascot.js";
 import { VoicePlayer } from "@/lib/voice-player";
+import { GAME_CSS, GameWidget, type GameState } from "@/lib/game-widget";
 import { WORKER_URL } from "@/lib/supabase-browser";
 import type { MascotConfig } from "@/lib/types";
 
@@ -21,7 +22,8 @@ const CSS = `
 .heart { position: absolute; bottom: 45%; left: 50%; font-size: 30px; animation: heart 1.8s ease-out forwards; }
 @keyframes confetti { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
 @keyframes heart { 0% { transform: translate(-50%, 0) scale(.4); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(var(--dx), -220%) scale(1.1); opacity: 0; } }
-${MASCOT_CSS}`;
+${MASCOT_CSS}
+${GAME_CSS}`;
 
 interface Play { id: number; reaction: string; text: string; duration: number; resume?: boolean }
 
@@ -30,6 +32,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
   const mascot = useRef<HTMLDivElement>(null);
   const bubble = useRef<HTMLDivElement>(null);
   const fx = useRef<HTMLDivElement>(null);
+  const gameRoot = useRef<HTMLDivElement>(null);
   const [lost, setLost] = useState(false);
   const [unknown, setUnknown] = useState(false);
 
@@ -130,6 +133,10 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       backTimer = setTimeout(idle, p.duration);
     };
 
+    // Juego "¡Llévame a la cima!": al ganar, confeti también en la montaña.
+    const game = new GameWidget(gameRoot.current!, () => burst("confetti"));
+    let gameState: GameState | null = null;
+
     if (!WORKER_URL) return;
     const es = new EventSource(`${WORKER_URL}/overlay/stream?key=${encodeURIComponent(overlayKey)}${preview ? "&preview=1" : ""}`);
     let opened = false;
@@ -139,7 +146,15 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       if (es.readyState === EventSource.CLOSED && !opened) { setUnknown(true); return; }
       setLost(true);
     };
-    es.addEventListener("config", (e) => { config = JSON.parse((e as MessageEvent).data); layout(); });
+    es.addEventListener("config", (e) => {
+      config = JSON.parse((e as MessageEvent).data);
+      layout();
+      if (gameState) game.update({ ...gameState, delta: 0 }, config!.mascot);
+    });
+    es.addEventListener("game", (e) => {
+      gameState = JSON.parse((e as MessageEvent).data);
+      if (config) game.update(gameState!, config.mascot);
+    });
     es.addEventListener("play", (e) => config && play(JSON.parse((e as MessageEvent).data)));
     es.addEventListener("audio", (e) => { const c = speaks(); if (c) voice.audio(JSON.parse((e as MessageEvent).data), c); });
     es.addEventListener("idle", idle);
@@ -161,6 +176,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     <>
       <style>{CSS}</style>
       {background && <style>{`html, body { background: ${background} !important; }`}</style>}
+      <div ref={gameRoot} />
       <div id="stage" ref={stage}>
         <div className="bubble" ref={bubble} />
         <div className="mascot st-reposo" ref={mascot} />

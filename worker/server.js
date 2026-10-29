@@ -165,6 +165,7 @@ async function route(req, res, url) {
     switch (body.action) {
       case 'clear': t.engine.clear('manual'); break;
       case 'idle': t.engine.idleTick(true); break;
+      case 'game-reset': t.engine.game.reset(); break;
       case 'clear-history': t.engine.log = []; t.send('history', [], ['panel']); break;
       case 'reload': await t.load(); keyCache.clear(); break;
       case 'start': return json(res, 200, await t.startSession());
