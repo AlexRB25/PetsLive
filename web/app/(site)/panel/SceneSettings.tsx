@@ -1,5 +1,5 @@
 "use client";
-// Fondo / pantalla de espera: tapa la transmisión con un fondo y un mensaje; la mascota y el juego quedan encima.
+// Fondo detrás de la mascota, para directos donde solo sale ella; la mascota y el juego quedan encima.
 import { useState } from "react";
 import { SCENE_PRESETS } from "@core/config.js";
 import { supabase } from "@/lib/supabase-browser";
@@ -47,19 +47,19 @@ export default function SceneSettings({ config, update }: { config: MascotConfig
   return (
     <div className="stack">
       <p className="muted small" style={{ margin: 0 }}>
-        Un fondo que tapa tu transmisión con un mensaje, para cuando no estás mostrando nada (pausas, “empezamos pronto”, “ya volvemos”).
-        La mascota y el juego siguen encima y siguen reaccionando. Lo puedes prender y apagar rápido desde la tarjeta de arriba.
+        Un fondo detrás de la mascota para directos donde solo sale ella, sin cámara ni juego atrás. La mascota y el juego quedan encima
+        y siguen reaccionando. El título y el texto son opcionales. Lo puedes prender y apagar rápido desde la tarjeta de arriba.
       </p>
       <div className="form">
         <label>Cuándo se muestra
           <select value={sc.mode} onChange={(e) => set((s) => { s.mode = e.target.value as typeof s.mode; })}>
             <option value="apagado">Apagado</option>
-            <option value="encendido">Ahora (hasta que lo apagues)</option>
-            <option value="sin-directo">Mientras el directo no esté iniciado en el panel</option>
+            <option value="encendido">Encendido</option>
+            <option value="sin-directo">Solo mientras el directo no esté iniciado en el panel</option>
           </select>
         </label>
-        <label>Título <input type="text" maxLength={60} value={sc.title} placeholder="Volvemos en un momento" onChange={(e) => set((s) => { s.title = e.target.value; })} /></label>
-        <label>Texto debajo <input type="text" maxLength={100} value={sc.subtitle} placeholder="Deja tu like mientras tanto" onChange={(e) => set((s) => { s.subtitle = e.target.value; })} /></label>
+        <label>Título <input type="text" maxLength={60} value={sc.title} placeholder="Opcional, por ejemplo: El directo de Bolt" onChange={(e) => set((s) => { s.title = e.target.value; })} /></label>
+        <label>Texto debajo <input type="text" maxLength={100} value={sc.subtitle} placeholder="Opcional, por ejemplo: Escribe Bolt y te saludo" onChange={(e) => set((s) => { s.subtitle = e.target.value; })} /></label>
         <label>Tipo de fondo
           <select value={sc.kind} onChange={(e) => set((s) => { s.kind = e.target.value as typeof s.kind; })}>
             <option value="preset">Degradado</option>

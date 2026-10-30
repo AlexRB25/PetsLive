@@ -2,14 +2,14 @@
 // Overlay de OBS: la mascota recibe del worker qué animación hacer, con qué texto y por cuánto tiempo.
 import { useEffect, useRef, useState } from "react";
 import { mascotHTML, MASCOT_CSS } from "@core/mascot.js";
-import { SCENE_PRESETS } from "@core/config.js";
+import { SCENE_PRESETS, sanitizeConfig } from "@core/config.js";
 import { VoicePlayer } from "@/lib/voice-player";
 import { GAME_CSS, GameWidget, type GameState } from "@/lib/game-widget";
 import { WORKER_URL } from "@/lib/supabase-browser";
 import type { MascotConfig } from "@/lib/types";
 
 const CSS = `
-#scene { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 6vmin;
+#scene { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 12px; padding: 14vh 6vmin 6vmin;
   background-size: cover; background-position: center; opacity: 0; transition: opacity .6s; pointer-events: none; text-align: center;
   font-family: "Nunito", "Segoe UI Rounded", "Segoe UI", system-ui, sans-serif; color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,.55); }
 #scene.on { opacity: 1; }
@@ -141,7 +141,7 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       backTimer = setTimeout(idle, p.duration);
     };
 
-    // Fondo (pantalla de espera): encendido, o solo mientras el directo no está iniciado.
+    // Fondo detrás de la mascota: encendido, o solo mientras el directo no está iniciado.
     let live = false;
     const paintScene = () => {
       const sc = config!.scene;
@@ -174,7 +174,8 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       setLost(true);
     };
     es.addEventListener("config", (e) => {
-      config = JSON.parse((e as MessageEvent).data);
+      // Se valida aquí también para que los campos nuevos tengan valor aunque el servidor sea más viejo.
+      config = sanitizeConfig(JSON.parse((e as MessageEvent).data)) as MascotConfig;
       layout();
       paintScene();
       drawGame(false);

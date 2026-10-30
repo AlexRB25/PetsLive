@@ -121,14 +121,14 @@ export const DEFAULT_CONFIG = {
   summary: { saveComments: true },
   // Juego "¡Llévame a la cima!" (ver game.js).
   game: DEFAULT_GAME,
-  // Fondo que tapa la transmisión (pantalla de espera). La mascota y el juego quedan encima.
+  // Fondo detrás de la mascota, para directos donde solo sale ella (sin cámara ni juego atrás).
   scene: {
     mode: 'apagado', // apagado | encendido | sin-directo (mientras el directo no está iniciado en el panel)
     kind: 'preset', // preset | color | imagen
     preset: 'atardecer',
     color: '#1e1b4b',
     image: '',
-    title: 'Volvemos en un momento',
+    title: '',
     subtitle: '',
   },
 };
