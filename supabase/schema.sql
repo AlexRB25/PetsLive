@@ -719,3 +719,102 @@ revoke execute on function public.consume_tts(uuid, integer) from public, anon, 
 grant execute on function public.consume_tts(uuid, integer) to service_role;
 revoke execute on function public.my_tts_quota() from public, anon;
 grant execute on function public.my_tts_quota() to authenticated;
+
+-- ============ créditos de IA (conversación) ============
+
+-- Paquetes de créditos (pago único, no caducan). Cada respuesta de la IA cuesta según el modelo elegido
+-- (ver AI_MODELS en core/config.js). Propuesta inicial de precios.
+create table if not exists public.credit_packs (
+  id text primary key,
+  name text not null,
+  credits integer not null,
+  price_mxn numeric(10, 2) not null,
+  active boolean not null default true,
+  sort integer not null default 0
+);
+
+insert into public.credit_packs (id, name, credits, price_mxn, sort) values
+  ('c300',  '300 créditos',   300,  49, 0),
+  ('c1000', '1,000 créditos', 1000, 129, 1),
+  ('c3000', '3,000 créditos', 3000, 299, 2)
+on conflict (id) do nothing;
+
+alter table public.credit_packs enable row level security;
+drop policy if exists credit_packs_read on public.credit_packs;
+create policy credit_packs_read on public.credit_packs for select using (active);
+
+alter table public.wallets add column if not exists credits integer not null default 0;
+
+alter table public.payments drop constraint if exists payments_kind_check;
+alter table public.payments add constraint payments_kind_check check (kind in ('suscripcion', 'paquete', 'creditos'));
+alter table public.payments add column if not exists credits integer not null default 0;
+
+-- Historial de cada movimiento de créditos: compras, respuestas de la IA, reembolsos y ajustes del admin.
+create table if not exists public.credit_ledger (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  delta integer not null,
+  balance integer not null,
+  kind text not null check (kind in ('compra', 'uso', 'reembolso', 'admin')),
+  model text not null default '',
+  detail text not null default '',
+  ref text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists credit_ledger_user_idx on public.credit_ledger (user_id, created_at desc);
+alter table public.credit_ledger enable row level security;
+drop policy if exists credit_ledger_own on public.credit_ledger;
+create policy credit_ledger_own on public.credit_ledger for select to authenticated using (user_id = auth.uid());
+revoke insert, update, delete on public.credit_ledger from anon, authenticated;
+
+-- Mueve créditos y lo anota en el historial. Si es un cargo y no alcanza, devuelve -1 y no cambia nada.
+create or replace function public.move_credits(
+  p_user uuid, p_delta integer, p_kind text, p_model text, p_detail text, p_ref text
+) returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_balance integer;
+begin
+  perform public.refresh_wallet(p_user);
+  select credits into v_balance from public.wallets where user_id = p_user for update;
+  if p_delta < 0 and p_kind <> 'admin' and v_balance + p_delta < 0 then
+    return -1;
+  end if;
+  v_balance := greatest(0, v_balance + p_delta);
+  update public.wallets set credits = v_balance, updated_at = now() where user_id = p_user;
+  insert into public.credit_ledger (user_id, delta, balance, kind, model, detail, ref)
+  values (p_user, p_delta, v_balance, p_kind, coalesce(p_model, ''), left(coalesce(p_detail, ''), 200), coalesce(p_ref, ''));
+  return v_balance;
+end;
+$$;
+
+-- Registra la compra de un paquete una sola vez (por id de pago de Mercado Pago) y da sus créditos.
+create or replace function public.grant_credit_payment(
+  p_mp_id text, p_user uuid, p_pack text, p_amount numeric, p_currency text, p_credits integer
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inserted boolean;
+begin
+  insert into public.payments (mp_id, user_id, kind, ref, amount, currency, minutes, credits)
+  values (p_mp_id, p_user, 'creditos', p_pack, p_amount, p_currency, 0, p_credits)
+  on conflict (mp_id) do nothing
+  returning true into inserted;
+  if not coalesce(inserted, false) then
+    return false;
+  end if;
+  perform public.move_credits(p_user, p_credits, 'compra', '', (select name from public.credit_packs where id = p_pack), p_mp_id);
+  return true;
+end;
+$$;
+
+revoke execute on function public.move_credits(uuid, integer, text, text, text, text) from public, anon, authenticated;
+revoke execute on function public.grant_credit_payment(text, uuid, text, numeric, text, integer) from public, anon, authenticated;
+grant execute on function public.move_credits(uuid, integer, text, text, text, text) to service_role;
+grant execute on function public.grant_credit_payment(text, uuid, text, numeric, text, integer) to service_role;

@@ -257,3 +257,39 @@ test('fondo: valida modo, tipo, imagen y textos', () => {
   assert.equal(s.color, '#1e1b4b');
   assert.equal(sanitizeConfig({ scene: { kind: 'imagen', image: 'https://x.supabase.co/storage/v1/object/public/mascotas/u/fondo.png' } }).scene.kind, 'imagen');
 });
+
+test('IA: responde comentarios con el texto de Claude y vuelve a la frase normal si no hay créditos', async () => {
+  const cfg = sanitizeConfig({ behavior: { minGapMs: 0, userCooldownMs: 0 }, ai: { enabled: true, replyTo: 'todos' } });
+  const played = [];
+  const engine = new Engine(cfg, (k, p) => k === 'play' && played.push(p));
+  const asked = [];
+  engine.ai = async (evt) => { asked.push(evt.text); return evt.name === 'Ana' ? { text: '¡Claro que sí, Ana!', reaction: 'baile' } : null; };
+
+  assert.equal(engine.ingest({ type: 'chat', user: 'Ana', text: '¿bailas?' }).action, 'pensando');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(played[0].text, '¡Claro que sí, Ana!');
+  assert.equal(played[0].reaction, 'baile');
+
+  // Sin respuesta (sin créditos): una mención usa la frase normal; un comentario cualquiera se deja pasar.
+  engine.clear('x');
+  engine.ingest({ type: 'chat', user: 'Beto', text: 'hola Chispa' });
+  engine.ingest({ type: 'chat', user: 'Caro', text: 'qué tal' });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(played.length, 2);
+  assert.match(played[1].text, /Beto/);
+  assert.equal(asked.length, 3);
+  stop(engine);
+});
+
+test('IA: respeta el límite por minuto y solo menciones si así se eligió', async () => {
+  const cfg = sanitizeConfig({ behavior: { userCooldownMs: 0 }, ai: { enabled: true, perMinute: 1 } });
+  const engine = new Engine(cfg, () => {});
+  let calls = 0;
+  engine.ai = async () => { calls++; return null; };
+  assert.equal(engine.ingest({ type: 'chat', user: 'A', text: 'hola' }).detail, 'no menciona a la mascota');
+  engine.ingest({ type: 'chat', user: 'A', text: 'hola Chispa' });
+  assert.equal(engine.ingest({ type: 'chat', user: 'B', text: 'Chispa!' }).action, 'en cola'); // sin cupo: frase normal
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(calls, 1);
+  stop(engine);
+});

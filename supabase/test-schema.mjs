@@ -137,3 +137,17 @@ ok((await tryAs(V, `select consume_tts($1, -99999)`, [V])) !== 'ok', 'usuario no
 await db.query(`insert into platform_tokens (user_id, platform, data) values ($1, 'elevenlabs', 'v1.x')`, [V]);
 ok((await db.query(`select count(*)::int as n from platform_tokens where platform = 'elevenlabs'`)).rows[0].n === 1, 'guarda llave de ElevenLabs');
 ok((await db.query(`select 'audio/webm' = any(allowed_mime_types) as a from storage.buckets where id = 'mascotas'`)).rows[0].a === true, 'bucket acepta audios');
+
+// créditos de IA
+ok((await db.query(`select grant_credit_payment('pay:c1',$1,'c300',49,'MXN',300) as r`, [V])).rows[0].r === true, 'compra de créditos');
+ok((await db.query(`select grant_credit_payment('pay:c1',$1,'c300',49,'MXN',300) as r`, [V])).rows[0].r === false, 'compra de créditos duplicada ignorada');
+ok((await db.query(`select move_credits($1, -4, 'uso', 'premium', 'Respuesta a Ana', '') as b`, [V])).rows[0].b === 296, 'descuenta una respuesta');
+ok((await db.query(`select move_credits($1, -1000, 'uso', 'premium', 'x', '') as b`, [V])).rows[0].b === -1, 'no descuenta si no alcanza');
+ok((await db.query(`select move_credits($1, 4, 'reembolso', 'premium', 'falló', '') as b`, [V])).rows[0].b === 300, 'reembolso');
+ok((await db.query(`select move_credits($1, -1000, 'admin', '', 'ajuste', '') as b`, [V])).rows[0].b === 0, 'ajuste del admin no baja de cero');
+r = await as(V, `select kind, delta, balance from credit_ledger order by id`);
+ok(r.rows.length === 4 && r.rows[0].kind === 'compra' && r.rows[1].delta === -4 && r.rows[3].balance === 0, 'historial de créditos');
+ok((await as(U, `select count(*)::int as n from credit_ledger`)).rows[0].n === 0, 'no ve el historial de otros');
+ok((await tryAs(V, `select move_credits($1, 99999, 'compra', '', '', '')`, [V])) !== 'ok', 'usuario no puede darse créditos');
+ok((await tryAs(V, `update wallets set credits = 99999`)) !== 'ok' || (await db.query(`select credits from wallets where user_id = $1`, [V])).rows[0].credits === 0, 'usuario no cambia su saldo');
+ok((await as(V, `select count(*)::int as n from credit_packs`)).rows[0].n === 3, 'paquetes de créditos visibles');

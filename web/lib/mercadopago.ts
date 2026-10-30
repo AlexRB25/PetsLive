@@ -1,4 +1,4 @@
-// Mercado Pago: suscripciones mensuales (preapproval) y recargas de horas (Checkout Pro). Solo servidor.
+// Mercado Pago: suscripciones mensuales (preapproval), recargas de horas y créditos de IA (Checkout Pro). Solo servidor.
 // Mismo flujo que ProPicksAI y Kubbo3D. Nada de lo que manda el navegador se cree: todo se vuelve a leer de Mercado Pago.
 import { db } from "./server";
 
@@ -111,7 +111,10 @@ export async function syncAuthorizedPayment(id: string): Promise<Sync> {
   return pre ? syncPreapproval(pre) : "ignored";
 }
 
-/** Pago de una recarga de horas. external_reference = "pack:<user id>:<pack id>". */
+/**
+ * Pago de una recarga de horas (external_reference = "pack:<user id>:<pack id>") o de créditos de IA
+ * ("credits:<user id>:<pack id>").
+ */
 export async function syncPayment(id: string): Promise<Sync> {
   if (!/^\d{4,20}$/.test(id)) return "ignored";
   const res = await mercadoPago(`/v1/payments/${id}`);
@@ -119,13 +122,27 @@ export async function syncPayment(id: string): Promise<Sync> {
   if (!res.ok) return "retry";
   const p = await res.json();
   const [tag, userId, packId] = String(p.external_reference ?? "").split(":");
-  if (tag !== "pack" || !UUID.test(userId ?? "") || !packId) return "ignored";
+  if ((tag !== "pack" && tag !== "credits") || !UUID.test(userId ?? "") || !packId) return "ignored";
   if (p.status !== "approved") return "ok";
+  const paid = Number(p.transaction_amount) || 0;
+
+  if (tag === "credits") {
+    const cp = await db().from("credit_packs").select("id, credits, price_mxn").eq("id", packId).maybeSingle();
+    if (cp.error) return "retry";
+    if (!cp.data) return "ignored";
+    if (paid < Number(cp.data.price_mxn) * 0.99) {
+      console.error("Pago de créditos con monto menor al esperado", id, paid);
+      return "ignored";
+    }
+    const g = await db().rpc("grant_credit_payment", {
+      p_mp_id: `pay:${id}`, p_user: userId, p_pack: packId, p_amount: paid, p_currency: p.currency_id ?? CURRENCY, p_credits: cp.data.credits,
+    });
+    return g.error ? "retry" : "ok";
+  }
 
   const pack = await db().from("hour_packs").select("id, minutes, price_mxn").eq("id", packId).maybeSingle();
   if (pack.error) return "retry";
   if (!pack.data) return "ignored";
-  const paid = Number(p.transaction_amount) || 0;
   if (paid < Number(pack.data.price_mxn) * 0.99) {
     console.error("Pago de recarga con monto menor al esperado", id, paid);
     return "ignored";

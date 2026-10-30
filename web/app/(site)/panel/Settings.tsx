@@ -8,6 +8,7 @@ import Connections from "./Connections";
 import MascotPicker from "./MascotPicker";
 import GameSettings from "./GameSettings";
 import SceneSettings from "./SceneSettings";
+import AiSettings from "./AiSettings";
 import type { GameState } from "@/lib/game-widget";
 import VoicePicker from "./VoicePicker";
 import Usage from "./Usage";
@@ -22,7 +23,7 @@ const RULE_LABELS: Record<string, string> = {
 };
 
 const TABS = [
-  ["mascota", "Mascota"], ["voz", "Voz"], ["limites", "Límites"], ["reglas", "Reglas y frases"],
+  ["mascota", "Mascota"], ["ia", "IA"], ["voz", "Voz"], ["limites", "Límites"], ["reglas", "Reglas y frases"],
   ["comandos", "Comandos"], ["juegos", "Juegos"], ["fondo", "Fondo"], ["conexiones", "Conexiones"], ["uso", "Directos y resúmenes"],
 ] as const;
 
@@ -239,6 +240,7 @@ export default function Settings({ config, update, resetConfig, saved, connectio
       )}
 
       {tab === "conexiones" && <Connections connections={connections} reload={reloadConnections} maxPlatforms={maxPlatforms} sessionActive={sessionActive} />}
+      {tab === "ia" && <AiSettings config={config} update={update} />}
       {tab === "fondo" && <SceneSettings config={config} update={update} />}
       {tab === "juegos" && <GameSettings config={config} update={update} state={game} call={call} />}
       {tab === "uso" && <Usage />}

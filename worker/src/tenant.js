@@ -6,6 +6,8 @@ import { encryptJSON, decryptJSON } from '../../core/tokens.js';
 import { db } from './db.js';
 import { SessionStats } from './stats.js';
 import { cachedAudio, synthesize } from './voice.js';
+import { aiConfigured, chatReply } from './ai.js';
+import { AI_MODELS } from '../../core/config.js';
 import { TwitchConnector } from './connectors/twitch.js';
 import { YouTubeConnector } from './connectors/youtube.js';
 import { FacebookConnector } from './connectors/facebook.js';
@@ -27,6 +29,7 @@ export class Tenant {
     this.session = null;
     this.meterTimer = null;
     this.lastActive = Date.now();
+    this.chat = []; // últimos comentarios (y respuestas de la IA) para dar contexto a la conversación
   }
 
   async load() {
@@ -45,6 +48,7 @@ export class Tenant {
     if (ev.data?.data) try { this.elevenKey = decryptJSON(ev.data.data).apiKey || null; } catch (e) { console.error('llave ElevenLabs ilegible', this.userId, e.message); }
     if (this.engine) this.engine.setConfig(this.config);
     else this.engine = new Engine(this.config, (kind, payload) => this.onEngine(kind, payload));
+    this.engine.ai = (evt) => this.aiReply(evt);
     // Si se cambió la URL del overlay, la vieja deja de funcionar al instante.
     if (oldKey && oldKey !== this.overlayKey) {
       for (const c of this.clients) if (c.role !== 'panel') c.res.end();
@@ -103,6 +107,40 @@ export class Tenant {
     return { url: `/audio/${await synthesize(apiKey, voice, text)}.mp3` };
   }
 
+  /** Respuesta con IA a un comentario: cobra los créditos del modelo, pide la respuesta y la filtra. */
+  async aiReply(evt) {
+    const key = this.config.ai.model;
+    const model = AI_MODELS[key];
+    const warn = (detail) => {
+      if (Date.now() - (this.aiWarnedAt || 0) < 10 * 60000) return;
+      this.aiWarnedAt = Date.now();
+      this.engine.pushLog({ kind: 'ia', action: 'descartado', detail });
+    };
+    if (!aiConfigured()) return warn('La IA no está configurada en el servidor; se usan las frases normales.'), null;
+    const charge = await db().rpc('move_credits', {
+      p_user: this.userId, p_delta: -model.credits, p_kind: 'uso', p_model: key,
+      p_detail: `${evt.name}: ${evt.text}`.slice(0, 120), p_ref: evt.source,
+    });
+    if (charge.error) throw charge.error;
+    if (charge.data < 0) return warn('Sin créditos de IA: compra más en la pestaña IA. Mientras, se usan las frases normales.'), null;
+
+    const history = this.chat.filter((h) => !(h.user === evt.name && h.text === evt.text)).slice(-10);
+    try {
+      const reply = await chatReply(this.config, history, evt);
+      const flat = reply.text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      if (this.config.behavior.blockedWords.some((w) => w && flat.includes(w))) throw new Error('la respuesta tenía una palabra bloqueada');
+      const entry = this.chat.findLast((h) => h.user === evt.name && h.text === evt.text);
+      if (entry) entry.reply = reply.text;
+      this.engine.pushLog({ kind: 'ia', action: 'respondido', detail: `${AI_MODELS[key].label} · −${model.credits} crédito${model.credits === 1 ? '' : 's'} · quedan ${charge.data}` });
+      return reply;
+    } catch (e) {
+      await db().rpc('move_credits', { p_user: this.userId, p_delta: model.credits, p_kind: 'reembolso', p_model: key, p_detail: `No se pudo responder: ${e.message}`.slice(0, 120), p_ref: '' });
+      console.error('ia', this.userId, e.message);
+      this.engine.pushLog({ kind: 'ia', action: 'descartado', detail: `La IA falló (${e.message}); créditos devueltos.` });
+      return null;
+    }
+  }
+
   // ---------- clientes ----------
 
   send(kind, payload, roles = null) {
@@ -151,6 +189,10 @@ export class Tenant {
 
   ingest(evt, source) {
     this.lastActive = Date.now();
+    if (evt?.type === 'chat' && typeof evt.text === 'string' && evt.text.trim()) {
+      this.chat.push({ user: this.engine.safeName(evt.user), text: evt.text.trim().slice(0, 300) });
+      if (this.chat.length > 30) this.chat.splice(0, this.chat.length - 30);
+    }
     if (source !== 'simulador') {
       const s = this.session;
       if (!s) return { ok: false };

@@ -5,7 +5,7 @@ import { sanitizeConfig } from "@core/config.js";
 import Header from "@/components/Header";
 import LoginGate from "@/components/LoginGate";
 import { useSession } from "@/components/Auth";
-import { supabase, WORKER_URL } from "@/lib/supabase-browser";
+import { postJSON, supabase, WORKER_URL } from "@/lib/supabase-browser";
 import type { AccountStatus, Connection, MascotConfig } from "@/lib/types";
 import { useWorker } from "./useWorker";
 import LiveCard from "./LiveCard";
@@ -50,8 +50,19 @@ export default function Panel() {
       loadStatus();
       loadConnections();
     })();
-    const q = new URLSearchParams(location.search).get("conexion");
+    const params = new URLSearchParams(location.search);
+    const q = params.get("conexion");
     if (q) { setNotice(q); history.replaceState(null, "", "/panel"); }
+    // Al volver de comprar créditos en Mercado Pago: se acreditan sin esperar el webhook.
+    const pay = params.get("payment_id") || params.get("collection_id");
+    if (params.get("creditos") && pay) {
+      history.replaceState(null, "", "/panel");
+      const approved = params.get("status") === "approved" || params.get("collection_status") === "approved";
+      postJSON("/api/horas/sincronizar", { payment_id: pay })
+        .then(() => setNotice(approved ? "¡Pago recibido! Tus créditos de IA ya están en tu cuenta." : "Recibimos tu pago; en cuanto Mercado Pago lo apruebe se suman tus créditos."))
+        .catch((e) => setNotice(`No se pudo confirmar el pago todavía: ${(e as Error).message}`))
+        .finally(() => window.dispatchEvent(new CustomEvent("petslive-tab", { detail: "ia" })));
+    }
   }, [session, loadStatus, loadConnections]);
 
   // Los minutos cambian mientras hay directo: se refrescan al cambiar la sesión.

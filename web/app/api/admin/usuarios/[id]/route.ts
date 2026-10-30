@@ -43,7 +43,7 @@ const int = (v: unknown) => Math.trunc(Number(v) || 0);
 
 /**
  * Acciones de administración sobre un usuario. Todas quedan en admin_actions.
- * { action: "minutes", plan, extra } · { action: "gift", plan, months } · { action: "cancel_sub", immediate, removeMinutes }
+ * { action: "minutes", plan, extra } · { action: "credits", amount, reason } · { action: "gift", plan, months } · { action: "cancel_sub", immediate, removeMinutes }
  * { action: "block", reason } · { action: "unblock" } · { action: "notes", notes } · { action: "admin", value }
  */
 export async function POST(req: Request, { params }: Params) {
@@ -67,6 +67,15 @@ export async function POST(req: Request, { params }: Params) {
       const r = await db().rpc("admin_adjust_minutes", { p_user: id, p_plan: plan, p_extra: extra });
       if (r.error) return fail(r.error.message, 502);
       detail = { plan, extra, reason: String(body.reason ?? "").slice(0, 300) };
+      break;
+    }
+    case "credits": {
+      const amount = Math.max(-1_000_000, Math.min(1_000_000, int(body.amount)));
+      if (!amount) return fail("Indica cuántos créditos sumar o restar.");
+      const reason = String(body.reason ?? "").slice(0, 300);
+      const r = await db().rpc("move_credits", { p_user: id, p_delta: amount, p_kind: "admin", p_model: "", p_detail: reason || "Ajuste del administrador", p_ref: admin.email ?? "" });
+      if (r.error) return fail(r.error.message, 502);
+      detail = { amount, reason, balance: r.data };
       break;
     }
     case "gift": {

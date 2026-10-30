@@ -174,11 +174,39 @@ export class Engine {
     }
     const rule = this.config.rules.chat;
     if (!rule.enabled) return this.record(evt, 'ignorado', 'regla desactivada');
-    if (rule.onlyMentions && !strip(evt.text).includes(strip(this.config.mascot.name))) {
-      return this.record(evt, 'ignorado', 'no menciona a la mascota');
-    }
+    const ai = this.config.ai;
+    const useAi = Boolean(ai?.enabled && this.ai);
+    const mentions = strip(evt.text).includes(strip(this.config.mascot.name));
+    const needsMention = useAi ? ai.replyTo === 'menciones' : rule.onlyMentions;
+    if (needsMention && !mentions) return this.record(evt, 'ignorado', 'no menciona a la mascota');
     if (this.onCooldown(evt, t)) return this.record(evt, 'descartado', 'mismo usuario hace poco');
+    if (useAi) return this.askAi(evt, t, mentions);
     return this.fromRule(evt, 'chat', { user: evt.name });
+  }
+
+  /**
+   * Respuesta con IA: this.ai(evt) (lo pone el worker) devuelve { text, reaction } o null si no hay créditos
+   * o falló; entonces se usa una frase normal. Se limita por minuto y si la cola está llena para no gastar
+   * créditos en respuestas que se descartarían.
+   */
+  askAi(evt, t, mentions) {
+    const ai = this.config.ai;
+    this.aiCalls = (this.aiCalls || []).filter((x) => t - x < 60000);
+    const busy = this.queue.length >= Math.max(1, Math.floor(this.config.behavior.maxQueue / 2));
+    if (this.aiCalls.length >= ai.perMinute || busy) {
+      // Sin cupo de IA: las menciones reciben frase normal; los demás comentarios se dejan pasar.
+      if (mentions) return this.fromRule(evt, 'chat', { user: evt.name });
+      return this.record(evt, 'ignorado', busy ? 'cola ocupada' : 'límite de IA por minuto');
+    }
+    this.aiCalls.push(t);
+    Promise.resolve()
+      .then(() => this.ai(evt))
+      .catch(() => null)
+      .then((reply) => {
+        if (reply?.text) this.fromRule(evt, 'chat', { user: evt.name }, reply.reaction || null, null, reply.text);
+        else if (mentions) this.fromRule(evt, 'chat', { user: evt.name });
+      });
+    return this.record(evt, 'pensando', `IA ${ai.model}`);
   }
 
   onGift(evt, t) {
@@ -213,7 +241,7 @@ export class Engine {
     return amount > 1 ? `${amount}× ${name}` : name;
   }
 
-  fromRule(evt, ruleKey, vars, reactionOverride = null, mergeKey = null) {
+  fromRule(evt, ruleKey, vars, reactionOverride = null, mergeKey = null, fixedText = undefined) {
     const rule = this.config.rules[ruleKey];
     if (!rule || !rule.enabled) return this.record(evt, 'descartado', 'regla desactivada');
     const item = {
@@ -224,6 +252,7 @@ export class Engine {
       vars: { mascota: this.config.mascot.name, count: 0, amount: 1, gift: '', names: '', user: this.config.behavior.fallbackName, ...vars },
       ts: this.now(),
       mergeKey,
+      fixedText,
       label: `${evt.type}${evt.name ? ' · ' + evt.name : ''}`,
     };
     const res = this.enqueue(item);
@@ -327,7 +356,7 @@ export class Engine {
     const b = this.config.behavior;
     const t = this.now();
     if (!item.test) this.plays.push(t);
-    const text = b.silent ? '' : (item.test ? item.fixedText : this.render(item));
+    const text = b.silent ? '' : (item.test || item.fixedText ? item.fixedText : this.render(item));
     const duration = this.config.durations[item.reaction] || 2500;
     this.current = { ...item, startedAt: t, duration, text };
     this.emit('play', { id: item.id, reaction: item.reaction, rule: item.rule, text, duration, priority: item.priority });

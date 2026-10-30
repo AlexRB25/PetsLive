@@ -18,6 +18,15 @@ export const SCENE_PRESETS = {
   caramelo: 'linear-gradient(135deg, #f9a8d4 0%, #c4b5fd 50%, #93c5fd 100%)',
 };
 
+// Modelos de IA para conversar en el chat y cuántos créditos cuesta cada respuesta.
+// Costo real aproximado por respuesta (~1,500 tokens de entrada y ~350 de salida): rápida ≈ $0.0003 USD,
+// natural ≈ $0.0065 USD, premium ≈ $0.013 USD. Con créditos a ~$0.10–0.16 MXN quedan margen y comisiones.
+export const AI_MODELS = {
+  rapida: { id: 'claude-haiku-5-5', label: 'Rápida', detail: 'Claude Haiku 5.5: respuestas simples y al instante', credits: 1 },
+  natural: { id: 'claude-sonnet-5-5', label: 'Natural', detail: 'Claude Sonnet 5.5: más ingeniosa y con mejor memoria del chat', credits: 2 },
+  premium: { id: 'claude-opus-5-5', label: 'Premium', detail: 'Claude Opus 5.5: la más natural y con más personalidad', credits: 4 },
+};
+
 export const EVENT_TYPES = ['join', 'chat', 'follow', 'like', 'gift', 'sub', 'purchase', 'win', 'lose', 'scare'];
 
 export const DEFAULT_CONFIG = {
@@ -121,6 +130,15 @@ export const DEFAULT_CONFIG = {
   summary: { saveComments: true },
   // Juego "¡Llévame a la cima!" (ver game.js).
   game: DEFAULT_GAME,
+  // Conversación con IA: la mascota responde comentarios del chat con Claude y descuenta créditos.
+  ai: {
+    enabled: false,
+    model: 'rapida', // ver AI_MODELS
+    replyTo: 'menciones', // menciones | todos
+    personality: 'Alegre, juguetona y cariñosa. Hace bromas sanas y anima al público.',
+    about: '', // de qué trata el directo o el canal (por ejemplo, tu tienda o el juego)
+    perMinute: 4, // respuestas con IA por minuto como máximo (cuida tus créditos)
+  },
   // Fondo detrás de la mascota, para directos donde solo sale ella (sin cámara ni juego atrás).
   scene: {
     mode: 'apagado', // apagado | encendido | sin-directo (mientras el directo no está iniciado en el panel)
@@ -168,6 +186,7 @@ export function sanitizeConfig(input = {}) {
   const b = i.behavior || {};
   const s = b.schedule || {};
   const sc = i.scene || {};
+  const ai = i.ai || {};
   const out = {
     mascot: {
       kind: oneOf(m.kind, ['catalogo', 'ia', 'imagen'], d.mascot.kind),
@@ -230,6 +249,14 @@ export function sanitizeConfig(input = {}) {
     rules: {},
     commands: {},
     game: sanitizeGame(i.game),
+    ai: {
+      enabled: typeof ai.enabled === 'boolean' ? ai.enabled : d.ai.enabled,
+      model: oneOf(ai.model, Object.keys(AI_MODELS), d.ai.model),
+      replyTo: oneOf(ai.replyTo, ['menciones', 'todos'], d.ai.replyTo),
+      personality: str(ai.personality, 400, d.ai.personality).trim(),
+      about: str(ai.about, 600, d.ai.about).trim(),
+      perMinute: clampNum(ai.perMinute, 1, 20, d.ai.perMinute),
+    },
     scene: {
       mode: oneOf(sc.mode, ['apagado', 'encendido', 'sin-directo'], d.scene.mode),
       kind: oneOf(sc.kind, ['preset', 'color', 'imagen'], d.scene.kind),

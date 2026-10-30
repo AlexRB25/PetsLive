@@ -77,7 +77,7 @@ export default function Users() {
 interface Detail {
   user: { id: string; email: string; created_at: string; last_sign_in_at: string | null; banned_until: string | null };
   profile: { is_admin: boolean; blocked: boolean; blocked_reason: string; notes: string } | null;
-  wallet: { plan_id: string; plan_minutes: number; extra_minutes: number; period_end: string } | null;
+  wallet: { plan_id: string; plan_minutes: number; extra_minutes: number; period_end: string; credits?: number } | null;
   plan: string;
   subscriptions: { id: string; plan_id: string; source: string; status: string; amount: number; next_payment_date: string | null; paid_until: string | null; created_at: string; payer_email: string }[];
   payments: { mp_id: string; kind: string; ref: string; amount: number; minutes: number; created_at: string }[];
@@ -88,7 +88,7 @@ interface Detail {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  minutes: "Ajuste de horas", gift: "Plan regalado", cancel_sub: "Suscripción cancelada", block: "Cuenta suspendida",
+  minutes: "Ajuste de horas", credits: "Ajuste de créditos de IA", gift: "Plan regalado", cancel_sub: "Suscripción cancelada", block: "Cuenta suspendida",
   unblock: "Cuenta reactivada", notes: "Notas editadas", admin: "Permiso de admin",
 };
 
@@ -98,6 +98,7 @@ function UserDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [minutes, setMinutes] = useState({ kind: "extra", hours: "1", sign: "1", reason: "" });
+  const [credits, setCredits] = useState({ amount: "100", sign: "1", reason: "" });
   const [gift, setGift] = useState({ plan: "creator", months: "1" });
   const [notes, setNotes] = useState("");
 
@@ -161,6 +162,22 @@ function UserDetail({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
 
         <div className="card stack">
+          <h3 style={{ margin: 0 }}>Créditos de IA <span className="muted small">· saldo {w?.credits ?? 0}</span></h3>
+          <div className="row">
+            <select value={credits.sign} onChange={(e) => setCredits({ ...credits, sign: e.target.value })} style={{ width: "auto" }}>
+              <option value="1">Dar</option><option value="-1">Quitar</option>
+            </select>
+            <input type="number" min={1} step={1} value={credits.amount} onChange={(e) => setCredits({ ...credits, amount: e.target.value })} style={{ width: 90 }} />
+            <span className="small">créditos</span>
+          </div>
+          <input type="text" placeholder="Motivo (sale en el historial del usuario)" value={credits.reason} onChange={(e) => setCredits({ ...credits, reason: e.target.value })} />
+          <button className="btn primary sm" disabled={busy || !Math.round(Number(credits.amount))} onClick={() => {
+            const amount = Math.round(Number(credits.amount)) * Number(credits.sign);
+            act({ action: "credits", amount, reason: credits.reason }, `Listo: ${amount > 0 ? "+" : ""}${amount} créditos.`);
+          }}>Aplicar</button>
+        </div>
+
+        <div className="card stack">
           <h3 style={{ margin: 0 }}>Regalar suscripción</h3>
           <div className="row">
             <select value={gift.plan} onChange={(e) => setGift({ ...gift, plan: e.target.value })} style={{ width: "auto" }}>
@@ -205,7 +222,7 @@ function UserDetail({ id, onBack }: { id: string; onBack: () => void }) {
       </Section>
       <Section title={`Pagos (${d.payments.length})`}>
         <thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th>Horas</th><th>Id</th></tr></thead>
-        <tbody>{d.payments.map((p) => <tr key={p.mp_id}><td>{dateTime(p.created_at)}</td><td>{p.kind === "suscripcion" ? `Plan ${p.ref}` : `Recarga ${p.ref}`}</td><td>{mxn(p.amount)}</td><td>{hours(p.minutes)}</td><td className="muted">{p.mp_id}</td></tr>)}</tbody>
+        <tbody>{d.payments.map((p) => <tr key={p.mp_id}><td>{dateTime(p.created_at)}</td><td>{p.kind === "suscripcion" ? `Plan ${p.ref}` : p.kind === "creditos" ? `Créditos ${p.ref}` : `Recarga ${p.ref}`}</td><td>{mxn(p.amount)}</td><td>{hours(p.minutes)}</td><td className="muted">{p.mp_id}</td></tr>)}</tbody>
       </Section>
       <Section title={`Directos recientes (${d.sessions.length})`}>
         <thead><tr><th>Inicio</th><th>Plataformas</th><th>Minutos</th><th>Eventos</th><th>Reacciones</th><th>Fin</th></tr></thead>
