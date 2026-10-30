@@ -110,7 +110,8 @@ export default function Panel() {
               update={update}
             />
             <div className="panel-grid">
-              <Preview overlayKey={overlayKey} call={worker.call} mascot={config.mascot} onMove={(patch) => update((c) => Object.assign(c.mascot, patch))} />
+              <Preview overlayKey={overlayKey} call={worker.call} mascot={config.mascot} onMove={(patch) => update((c) => Object.assign(c.mascot, patch))}
+                game={config.game} onMoveGame={(patch) => update((c) => Object.assign(c.game, patch))} />
               <Simulator mascotName={config.mascot.name} call={worker.call} />
               <QueueLog state={worker.state} log={worker.log} call={worker.call} maxPerMinute={config.behavior.maxPerMinute} />
             </div>

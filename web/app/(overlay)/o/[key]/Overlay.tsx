@@ -157,6 +157,12 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     // Juego "¡Llévame a la cima!": al ganar, confeti también en la montaña.
     const game = new GameWidget(gameRoot.current!, () => burst("confetti"));
     let gameState: GameState | null = null;
+    // La ubicación del juego sale de la configuración, para moverlo al instante desde la vista previa.
+    const drawGame = (delta: boolean) => {
+      if (!gameState || !config) return;
+      const g = config.game;
+      game.update({ ...gameState, side: g.side as GameState["side"], x: g.x, top: g.top, height: g.height, ...(delta ? {} : { delta: 0 }) }, config.mascot);
+    };
 
     if (!WORKER_URL) return;
     const es = new EventSource(`${WORKER_URL}/overlay/stream?key=${encodeURIComponent(overlayKey)}${preview ? "&preview=1" : ""}`);
@@ -171,11 +177,11 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
       config = JSON.parse((e as MessageEvent).data);
       layout();
       paintScene();
-      if (gameState) game.update({ ...gameState, delta: 0 }, config!.mascot);
+      drawGame(false);
     });
     es.addEventListener("game", (e) => {
       gameState = JSON.parse((e as MessageEvent).data);
-      if (config) game.update(gameState!, config.mascot);
+      drawGame(true);
     });
     es.addEventListener("play", (e) => config && play(JSON.parse((e as MessageEvent).data)));
     es.addEventListener("audio", (e) => { const c = speaks(); if (c) voice.audio(JSON.parse((e as MessageEvent).data), c); });
@@ -195,8 +201,9 @@ export default function Overlay({ overlayKey, preview, background }: { overlayKe
     // En la vista previa del panel, la mascota se mueve al instante mientras se arrastra.
     const onMessage = (e: MessageEvent) => {
       if (!preview || e.origin !== location.origin || e.data?.type !== "petslive-move" || !config) return;
-      config = { ...config, mascot: { ...config.mascot, ...e.data.mascot } };
+      config = { ...config, mascot: { ...config.mascot, ...e.data.mascot }, game: { ...config.game, ...e.data.game } };
       layout();
+      if (e.data.game) drawGame(false);
     };
     window.addEventListener("message", onMessage);
     return () => { es.close(); clearInterval(versionTimer); clearTimeout(backTimer); clearTimeout(bubbleTimer); window.removeEventListener("message", onMessage); };

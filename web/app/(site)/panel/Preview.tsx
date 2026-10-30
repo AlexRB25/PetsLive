@@ -7,6 +7,8 @@ import { REACTION_LABELS, type MascotConfig } from "@/lib/types";
 
 type Format = "horizontal" | "vertical";
 type Mascot = MascotConfig["mascot"];
+type Game = MascotConfig["game"];
+const GAME_W = 340; // ancho del juego en el overlay (game-widget.ts)
 const SIZE: Record<Format, { w: number; h: number }> = { horizontal: { w: 1920, h: 1080 }, vertical: { w: 1080, h: 1920 } };
 const KEY = "petslive.previewFormat";
 const ASPECT = 1.15; // alto / ancho de la mascota dibujada
@@ -36,9 +38,17 @@ interface Props {
   call: (path: string, body: unknown) => Promise<unknown>;
   mascot: Mascot;
   onMove: (patch: Partial<Mascot>) => void;
+  game: Game;
+  onMoveGame: (patch: Partial<Game>) => void;
 }
 
-export default function Preview({ overlayKey, call, mascot, onMove }: Props) {
+/** Caja del juego (en px del lienzo) según su ubicación guardada. */
+function gameBox(g: Game, W: number, H: number) {
+  const left = g.side === "libre" ? (g.x / 100) * W - GAME_W / 2 : g.side === "derecha" ? W - 24 - GAME_W : 24;
+  return { left, top: (g.top / 100) * H, height: g.height };
+}
+
+export default function Preview({ overlayKey, call, mascot, onMove, game, onMoveGame }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [format, setFormat] = useState<Format>("horizontal");
@@ -46,6 +56,7 @@ export default function Preview({ overlayKey, call, mascot, onMove }: Props) {
   const [scale, setScale] = useState(0.3);
   const [text, setText] = useState("");
   const [drag, setDrag] = useState<{ cx: number; by: number; size: number } | null>(null);
+  const [gdrag, setGdrag] = useState<{ left: number; top: number; height: number } | null>(null);
   const size = SIZE[format];
 
   useEffect(() => {
@@ -107,6 +118,41 @@ export default function Preview({ overlayKey, call, mascot, onMove }: Props) {
     window.addEventListener("pointerup", up);
   }
 
+  const gcur = gdrag ?? gameBox(game, size.w, size.h);
+  const gamePatch = (b: { left: number; top: number; height: number }) => ({
+    side: "libre",
+    x: Math.round(((b.left + GAME_W / 2) / size.w) * 100),
+    top: Math.round((b.top / size.h) * 100),
+    height: Math.round(b.height / 10) * 10,
+  });
+
+  /** Arrastre del juego (mover) o de su esquina (alto). */
+  function startGame(e: React.PointerEvent, mode: "move" | "resize") {
+    e.preventDefault();
+    e.stopPropagation();
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const from = { ...gcur };
+    let last = from;
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - sx) / scale;
+      const dy = (ev.clientY - sy) / scale;
+      last = mode === "move"
+        ? { ...from, left: Math.min(size.w - GAME_W / 2, Math.max(-GAME_W / 2, from.left + dx)), top: Math.min(size.h * 0.8, Math.max(0, from.top + dy)) }
+        : { ...from, height: Math.min(1600, Math.max(200, from.height + dy)) };
+      setGdrag(last);
+      frame.current?.contentWindow?.postMessage({ type: "petslive-move", game: gamePatch(last) }, location.origin);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      onMoveGame(gamePatch(last));
+      setTimeout(() => setGdrag(null), 50);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
   return (
     <section className="card span-all">
       <div className="row between">
@@ -117,7 +163,7 @@ export default function Preview({ overlayKey, call, mascot, onMove }: Props) {
         </div>
       </div>
       <p className="muted tiny" style={{ margin: "4px 0 8px" }}>
-        <strong>Arrastra la mascota</strong> para moverla y jala la esquina para cambiar su tamaño.{" "}
+        <strong>Arrastra la mascota</strong> para moverla y jala la esquina para cambiar su tamaño.{game.enabled ? " El juego también se arrastra; su esquina cambia el alto." : ""}{" "}
         {format === "horizontal" ? "Lienzo de 1920×1080 (YouTube, Twitch, Facebook)." : "Lienzo vertical de 1080×1920: en OBS o LIVE Studio usa la fuente a 1080×1920."}
       </p>
       <div className={`preview ${format}`} ref={box} style={{ aspectRatio: `${size.w} / ${size.h}` }}>
@@ -127,6 +173,16 @@ export default function Preview({ overlayKey, call, mascot, onMove }: Props) {
             {TIKTOK_ZONES.map((z) => (
               <div key={z.label} className="tt-zone" style={{ left: z.x, top: z.y, width: z.w, height: z.h }}><span>{z.label}</span></div>
             ))}
+          </div>
+        )}
+        {game.enabled && (
+          <div
+            className={`mascot-handle ${gdrag ? "dragging" : ""}`}
+            style={{ left: gcur.left * scale, top: gcur.top * scale, width: GAME_W * scale, height: gcur.height * scale }}
+            onPointerDown={(e) => startGame(e, "move")}
+            title="Arrastra para mover el juego"
+          >
+            <span className="resize-grip" onPointerDown={(e) => startGame(e, "resize")} title="Jala para cambiar el alto" />
           </div>
         )}
         <div

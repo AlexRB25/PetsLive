@@ -4,7 +4,7 @@ import { mascotHTML } from "@core/mascot.js";
 import type { MascotConfig } from "./types";
 
 export interface GameState {
-  enabled: boolean; title: string; goal: number; side: "izquierda" | "derecha"; top: number; height: number;
+  enabled: boolean; title: string; goal: number; side: "izquierda" | "derecha" | "libre"; x?: number; top: number; height: number;
   progress: number; wins: number; won: boolean;
   legend: { event: string; match: string; points: number; per: number }[];
   delta?: number; by?: string; gift?: string;
@@ -97,6 +97,9 @@ export class GameWidget {
     if (!s.enabled) return;
     this.root.className = `game on ${s.side}${s.won ? " won" : ""}`;
     this.root.style.top = `${s.top}%`;
+    // Libre: x es el centro del juego en % del ancho (se arrastra en la vista previa).
+    this.root.style.left = s.side === "libre" ? `${s.x ?? 16}%` : "";
+    this.root.style.transform = s.side === "libre" ? "translateX(-50%)" : "";
     this.root.style.height = `${s.height}px`;
 
     // Mini mascota con la misma apariencia que la grande (sin accesorio para que quepa).

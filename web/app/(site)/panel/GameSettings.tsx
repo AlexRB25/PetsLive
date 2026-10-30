@@ -43,8 +43,8 @@ export default function GameSettings({ config, update, state, call }: Props) {
         <label>Título <input type="text" maxLength={40} value={g.title} onChange={(e) => set((g) => { g.title = e.target.value; })} /></label>
         <label>Puntos para llegar a la cima <input type="number" min={10} value={g.goal} onChange={(e) => set((g) => { g.goal = Number(e.target.value); })} /></label>
         <label>Lado
-          <select value={g.side} onChange={(e) => set((g) => { g.side = e.target.value as "izquierda" | "derecha"; })}>
-            <option value="izquierda">Izquierda</option><option value="derecha">Derecha</option>
+          <select value={g.side} onChange={(e) => set((g) => { g.side = e.target.value as "izquierda" | "derecha" | "libre"; })}>
+            <option value="izquierda">Izquierda</option><option value="derecha">Derecha</option><option value="libre">Libre (arrástralo en la vista previa)</option>
           </select>
         </label>
         <label>Empieza a (% desde arriba) <input type="number" min={0} max={80} value={g.top} onChange={(e) => set((g) => { g.top = Number(e.target.value); })} /></label>

@@ -7,7 +7,8 @@ export const DEFAULT_GAME = {
   enabled: false,
   title: '¡Llévame a la cima!',
   goal: 100,
-  side: 'izquierda', // izquierda | derecha
+  side: 'izquierda', // izquierda | derecha | libre (arrastrado en la vista previa)
+  x: 16, // con side libre: centro del juego en % del ancho
   top: 18, // % desde arriba donde empieza la montaña
   height: 900, // px de alto del juego
   resetSec: 8,
@@ -42,7 +43,8 @@ export function sanitizeGame(g = {}) {
     enabled: typeof i.enabled === 'boolean' ? i.enabled : d.enabled,
     title: typeof i.title === 'string' && i.title.trim() ? i.title.replace(/[<>{}]/g, '').trim().slice(0, 40) : d.title,
     goal: clampNum(i.goal, 10, 100000, d.goal),
-    side: i.side === 'derecha' ? 'derecha' : 'izquierda',
+    side: ['derecha', 'libre'].includes(i.side) ? i.side : 'izquierda',
+    x: clampNum(i.x, 0, 100, d.x),
     top: clampNum(i.top, 0, 80, d.top),
     height: clampNum(i.height, 200, 1600, d.height),
     resetSec: clampNum(i.resetSec, 2, 120, d.resetSec),
@@ -80,7 +82,7 @@ export class Game {
   state(extra = {}) {
     const c = this.cfg;
     return {
-      enabled: c.enabled, title: c.title, goal: c.goal, side: c.side, top: c.top, height: c.height,
+      enabled: c.enabled, title: c.title, goal: c.goal, side: c.side, x: c.x, top: c.top, height: c.height,
       progress: this.progress, wins: this.wins, won: this.won || false,
       legend: c.rules.filter((r) => r.points !== 0).map((r) => ({ event: r.event, match: r.match, points: r.points, per: r.per })),
       ...extra,
